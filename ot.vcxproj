@@ -1,0 +1,122 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|ARM">
+      <Configuration>Debug</Configuration>
+      <Platform>ARM</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|ARM">
+      <Configuration>Release</Configuration>
+      <Platform>ARM</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|ARM64">
+      <Configuration>Debug</Configuration>
+      <Platform>ARM64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|ARM64">
+      <Configuration>Release</Configuration>
+      <Platform>ARM64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{7706d1ef-7133-4833-8ea1-d239b73793be}</ProjectGuid>
+    <Keyword>Linux</Keyword>
+    <RootNamespace>ot</RootNamespace>
+    <MinimumVisualStudioVersion>15.0</MinimumVisualStudioVersion>
+    <ApplicationType>Linux</ApplicationType>
+    <ApplicationTypeRevision>1.0</ApplicationTypeRevision>
+    <TargetLinuxPlatform>Raspberry</TargetLinuxPlatform>
+    <LinuxProjectType>{8748239F-558C-44D1-944B-07B09C35B330}</LinuxProjectType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'" Label="Configuration">
+    <UseDebugLibraries>true</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'" Label="Configuration">
+    <UseDebugLibraries>false</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'" Label="Configuration">
+    <UseDebugLibraries>false</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'" Label="Configuration">
+    <UseDebugLibraries>true</UseDebugLibraries>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="Shared" />
+  <ImportGroup Label="PropertySheets" />
+  <PropertyGroup Label="UserMacros" />
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
+    <Link>
+      <LibraryDependencies>wiringPi</LibraryDependencies>
+    </Link>
+    <RemotePostBuildEvent>
+      <Command>gpio export 17 out</Command>
+      <Message>export pin 17 using the gpio utility so that we can execute the blink program without sudo</Message>
+    </RemotePostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
+    <Link>
+      <LibraryDependencies>wiringPi</LibraryDependencies>
+    </Link>
+    <RemotePostBuildEvent>
+      <Command>gpio export 17 out</Command>
+      <Message>export pin 17 using the gpio utility so that we can execute the blink program without sudo</Message>
+    </RemotePostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="configuration.cpp" />
+    <ClCompile Include="discovery_main.cpp" />
+    <ClCompile Include="dispatcher.cpp" />
+    <ClCompile Include="firmware_update.cpp" />
+    <ClCompile Include="gnss_ping_protocol.cpp" />
+    <ClCompile Include="GPIO.cpp" />
+    <ClCompile Include="logger.cpp" />
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="MAVlink.cpp" />
+    <ClCompile Include="quaternion.cpp" />
+    <ClCompile Include="serializer_main.cpp" />
+    <ClCompile Include="queue.cpp" />
+    <ClCompile Include="rovl.cpp" />
+    <ClCompile Include="STbootloader_main.cpp" />
+    <ClCompile Include="system_state.cpp" />
+    <ClCompile Include="tiny_json.cpp" />
+    <ClCompile Include="tracker650.cpp" />
+    <ClCompile Include="utilities.cpp" />
+    <ClCompile Include="webserver.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="configuration.h" />
+    <ClInclude Include="discovery_main.h" />
+    <ClInclude Include="dispatcher.h" />
+    <ClInclude Include="firmware_update.h" />
+    <ClInclude Include="gnss_ping_protocol.h" />
+    <ClInclude Include="GPIO.h" />
+    <ClInclude Include="logger.h" />
+    <ClInclude Include="MAVlink.h" />
+    <ClInclude Include="packet_defs.h" />
+    <ClInclude Include="quaternion.h" />
+    <ClInclude Include="serializer_main.h" />
+    <ClInclude Include="queue.h" />
+    <ClInclude Include="rovl.h" />
+    <ClInclude Include="STbootloader_main.h" />
+    <ClInclude Include="system_state.h" />
+    <ClInclude Include="tiny_json.h" />
+    <ClInclude Include="tracker650.h" />
+    <ClInclude Include="utilities.h" />
+    <ClInclude Include="webserver.h" />
+  </ItemGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
+    <Link>
+      <LibraryDependencies>curl</LibraryDependencies>
+    </Link>
+    <RemotePreLinkEvent>
+      <Command>echo prelink $(StlAdditionalDependencies)</Command>
+    </RemotePreLinkEvent>
+    <RemotePostBuildEvent>
+      <Command>echo postbuild $(StlAdditionalDependencies);sudo cp /root/projects/ot/index.html /home/cerulean/web;chown cerulean /home/cerulean/web/index.html;cp /root/projects/ot/bin/ARM64/Debug/ot.out /root/ot;chmod +x /root/ot</Command>
+    </RemotePostBuildEvent>
+  </ItemDefinitionGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets" />
+</Project>
