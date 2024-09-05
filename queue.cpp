@@ -1,3 +1,5 @@
+#if false
+
 #include <netinet/in.h>
 
 #include "queue.h"
@@ -99,3 +101,5 @@ string Queue::dequeue()
 
    return (string)temp;
 }
+
+#endif

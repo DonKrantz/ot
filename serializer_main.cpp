@@ -44,6 +44,7 @@ namespace {
 #define REPLICATION_NAME "replication"
 #define INTERNAL_NAME "sending"
 #define WATCHDOG_NAME "watchdog"
+#define MAVLINK_NAME "mavlink"
 
 
 MAVlink* mavlink;
@@ -51,24 +52,28 @@ MAVlink* mavlink;
 double mavlink_last_received_mission_time = 0.0;
 
    // **************************************************************************************
-   // 
+   // The database struct used to manage the serialization of messages by "port" or "channel"
    struct ports_type
    {
-      enum PORT_TYPE port_type;
-      int fd;
-      int replicate_fd;
-      string serialname;
-      const char* devicename;
-      short listening_port;
-      int baud_rate;
-      struct sockaddr_in cliaddr;
-      void (*callto)(uint8_t*, size_t len, double timestamp);
-      bool line_mode;
-      bool switched_off;
-      double last_received_mission_time;
+      enum PORT_TYPE port_type; // the mechanism used for the port
+      int fd; // the fd of the message channel (UDP, serial, etc,)
+      int replicate_fd; // the replication UDP fd, if appropriate
+      string serialname;  // has multiple uses to identify the port mechanisms
+      const char* devicename;  // human-readable name of port
+      short listening_port;  // used on UDP ports
+      int baud_rate; // used only on serial devices
+      struct sockaddr_in cliaddr;   // source of UDP messages
+      void (*callto)(uint8_t*, size_t len, double timestamp); // callback with data
+      bool line_mode; // for serial devices -- linux canonical or non-canonical
+      bool switched_off; // id incoming poll is connected or not -- does not affect outgoing !!!!!
+      double last_received_mission_time; // timestamp of last received on this channel
    };
 
+   // callto funciton prototypes
    void send_to_null(uint8_t* buffer, size_t len, double timestamp);
+   void send_to_rovl(uint8_t* buffer, size_t len, double timestamp);
+   void send_to_gnss(uint8_t* buffer, size_t len, double timestamp);
+   void send_to_t650(uint8_t* buffer, size_t len, double timestamp);
    void send_to_internal(uint8_t* buffer, size_t len, double timestamp);
    void incoming_rovl(uint8_t* buffer, size_t len, double timestamp);
    void incoming_gnss(uint8_t* buffer, size_t len, double timestamp);
@@ -77,20 +82,23 @@ double mavlink_last_received_mission_time = 0.0;
 
    // **************************************************************************************
    // The active ports in the system. Serial are bi-directional, UDP are either for sending
-   // or receiving, the TCP option is not implementsed.
+   // or receiving, the TCP option is not yet implemented.
+   // 
+   // These are in the order of the PORTS class enum!
    struct ports_type port_list[] =
    {
-      { PORT_TYPE::UDP, -1, -1, "internal-listening", WATCHDOG_NAME, 0, B115200, {0}, send_to_internal, true, false },
-      { PORT_TYPE::SERIAL,  -1, -1, "port-rovl-rx", ROVL_NAME, 0, B115200, {0}, incoming_rovl, true, false },
-      { PORT_TYPE::SERIAL, -1, -1, "port-gnss-control", GNSS_NAME, 0, B115200, {0}, incoming_gnss, false, false },
-      { PORT_TYPE::UDP, -1, -1, "port-tracker650", TRACKER650_NAME, 0, B115200, {0}, incoming_tracker650, true, false },
-      { PORT_TYPE::UDP, -1, -1, "gnss-replicate", REPLICATION_NAME, 0, B115200, {0}, send_to_null, true, false },
-      { PORT_TYPE::UDP, -1, -1, "rovl-replicate", REPLICATION_NAME, 0, B115200, {0}, send_to_null, true, false },
-      { PORT_TYPE::UDP, -1, -1, "tracker650-replicate", REPLICATION_NAME, 0, B115200, {0}, send_to_null, true, false },
-      { PORT_TYPE::UDP, -1, -1, "mavlink-replicate", REPLICATION_NAME, 0, B115200, {0}, send_to_null , true, false },
-      { PORT_TYPE::UDP, -1, -1, "internal-sending", INTERNAL_NAME, 0, B115200, {0}, send_to_null, true, false },
+      { PORT_TYPE::UDP, -1, -1, "internal-listening", WATCHDOG_NAME, 0, B115200, {0}, send_to_internal, true, false, 0.0 },
+      { PORT_TYPE::SERIAL,  -1, -1, "port-rovl-rx", ROVL_NAME, 0, B115200, {0}, incoming_rovl, true, false, 0.0 },
+      { PORT_TYPE::SERIAL, -1, -1, "port-gnss-control", GNSS_NAME, 0, B115200, {0}, incoming_gnss, false, false, 0.0 },
+      { PORT_TYPE::UDP, -1, -1, "port-tracker650", TRACKER650_NAME, 0, B115200, {0}, incoming_tracker650, true, false, 0.0 },
+      { PORT_TYPE::UDP, -1, -1, "gnss-replicate", REPLICATION_NAME, 0, B115200, {0}, send_to_gnss, true, false, 0.0 },
+      { PORT_TYPE::UDP, -1, -1, "rovl-replicate", REPLICATION_NAME, 0, B115200, {0}, send_to_rovl, true, false, 0.0 },
+      { PORT_TYPE::UDP, -1, -1, "tracker650-replicate", REPLICATION_NAME, 0, B115200, {0}, send_to_t650, true, false, 0.0 },
+      { PORT_TYPE::UDP, -1, -1, "mavlink-replicate", REPLICATION_NAME, 0, B115200, {0}, send_to_null , true, false, 0.0 },
+      { PORT_TYPE::UDP, -1, -1, "internal-sending", INTERNAL_NAME, 0, B115200, {0}, send_to_null, true, false, 0.0 },
+      { PORT_TYPE::UDP, -1, -1, "mavlink-sending", MAVLINK_NAME, 0, B115200, {0}, send_to_null, true, false, 0.0 },
+      { PORT_TYPE::UDP, -1, -1, "mavlink-listening", MAVLINK_NAME, 0, B115200, {0}, send_to_null, true, true, 0.0 },
    };
-
 
 
    // **************************************************************************************
@@ -117,62 +125,6 @@ double mavlink_last_received_mission_time = 0.0;
    void incoming_gnss(uint8_t* buffer, size_t len, double timestamp)
    {
       process_incoming_gnss(buffer, len, timestamp);
-   }
-
-   // **************************************************************************************
-   void rovl_connected()
-   {
-      //todo: anything needed when ROVL connects
-      log_event("ROVL connected");
-   }
-
-   // **************************************************************************************
-   void rovl_disconnected()
-   {
-      //todo: anything needed when ROVL connects
-      log_event("ROVL disconnected");
-   }
-
-   // **************************************************************************************
-   void gnss_connected()
-   {
-      //todo: anything needed when ROVL connects
-      log_event("GNSS connected");
-   }
-
-   // **************************************************************************************
-   void gnss_disconnected()
-   {
-      //todo: anything needed when ROVL connects
-      log_event("GNSS disconnected");
-   }
-
-   // **************************************************************************************
-   void mavlink_connected()
-   {
-      //todo: anything needed when ROVL connects
-      log_event("MAVlink connected");
-   }
-
-   // **************************************************************************************
-   void mavlink_disconnected()
-   {
-      //todo: anything needed when ROVL connects
-      log_event("MAVlink disconnected");
-   }
-
-   // **************************************************************************************
-   void t650_connected()
-   {
-      //todo: anything needed when ROVL connects
-      log_event("Tracker 650 connected");
-   }
-
-   // **************************************************************************************
-   void t650_disconnected()
-   {
-      //todo: anything needed when ROVL connects
-      log_event("Tracker 650 disconnected");
    }
 
    // **************************************************************************************
@@ -217,6 +169,7 @@ double mavlink_last_received_mission_time = 0.0;
          head_of(message, ",", false); // lop off front of message 
          mav_global_origin_lat = std::stod(head_of(message, ",", false));
          mav_global_origin_lon = std::stod(head_of(message, ",", false));
+         mav_global_origin_valid = true;
          // todo: do something with mavlink message
       }
       else if (contains("LOCAL_POSITION", message))
@@ -242,6 +195,66 @@ double mavlink_last_received_mission_time = 0.0;
    }
 
    // **************************************************************************************
+   void rovl_connected()
+   {
+      //todo: anything needed when ROVL connects
+      log_event("ROVL connected");
+   }
+
+   // **************************************************************************************
+   void rovl_disconnected()
+   {
+      //todo: anything needed when ROVL connects
+      log_event("ROVL disconnected");
+   }
+
+   // **************************************************************************************
+   void gnss_connected()
+   {
+      //todo: anything needed when ROVL connects
+      log_event("GNSS connected");
+   }
+
+   // **************************************************************************************
+   void gnss_disconnected()
+   {
+      //todo: anything needed when ROVL connects
+      log_event("GNSS disconnected");
+   }
+
+   // **************************************************************************************
+   void mavlink_connected()
+   {
+      //todo: anything needed when ROVL connects
+      mav_global_origin_valid = false;
+      log_event("MAVlink connected");
+   }
+
+   // **************************************************************************************
+   void mavlink_disconnected()
+   {
+      //todo: anything needed when ROVL connects
+      mav_global_origin_valid = false;
+      log_event("MAVlink disconnected");
+   }
+
+   // **************************************************************************************
+   void t650_connected()
+   {
+      //todo: anything needed when ROVL connects
+      log_event("Tracker 650 connected");
+   }
+
+   // **************************************************************************************
+   void t650_disconnected()
+   {
+      //todo: anything needed when ROVL connects
+      log_event("Tracker 650 disconnected");
+   }
+
+   // **************************************************************************************
+   // Checks a single port/channel to see if it has timed out waiting for a mesage.
+   // Calls disconnected() parameter on timeout and connected() parameter on re-connect
    void check_comm(double last_touched, double timestamp, double limit, bool& active, 
       void (*connected)(void), void (*disconnected)(void))
    {
@@ -263,6 +276,7 @@ double mavlink_last_received_mission_time = 0.0;
    }
 
    // **************************************************************************************
+   // processed the ports/channels that need timeout monitoring
    void check_watchdog(double timestamp)
    {
       check_comm(port_list[(int)PORTS::ROVL_RX].last_received_mission_time,
@@ -279,6 +293,7 @@ double mavlink_last_received_mission_time = 0.0;
    }
 
    // **************************************************************************************
+   // sends a message to the "internal" port of the serializer.
    void send_to_internal(uint8_t* buffer, size_t len, double timestamp)
    {
       string msg((char*)buffer, len);
@@ -294,11 +309,36 @@ double mavlink_last_received_mission_time = 0.0;
    }
 
    // **************************************************************************************
+   // Puts messages into the bit bucket. Used as a placeholdeer call in the database.
    void send_to_null(uint8_t* buffer, size_t len, double timestamp)
    {
    }
 
-   
+   // **************************************************************************************
+   // Sends a message to the PORTS::ROVL_RX device. Used by the replicators.
+   void send_to_rovl(uint8_t* buffer, size_t len, double timestamp)
+   {
+      send_port_binary(PORTS::ROVL_RX, buffer,len);
+   }
+
+   // **************************************************************************************
+    // Sends a message to the PORTS::GNSS device. Used by the replicators.
+   void send_to_gnss(uint8_t* buffer, size_t len, double timestamp)
+   {
+      send_port_binary(PORTS::GNSS, buffer, len);
+   }
+
+   // **************************************************************************************
+   // Sends a message to the PORTS::TRACKER650 device. Used by the replicators.
+   void send_to_t650(uint8_t* buffer, size_t len, double timestamp)
+   {
+      send_port_binary(PORTS::TRACKER650, buffer, len);
+   }
+
+
+   // **************************************************************************************
+   // Driven by the database table. Sends data to the external replication monitoring, if
+   // appropriate and connected.
    void replicate(int fd, uint8_t* buffer, int n, struct sockaddr_in& cliaddr )
    {
       if (fd < 0)
@@ -313,6 +353,9 @@ double mavlink_last_received_mission_time = 0.0;
    }
    
    // **************************************************************************************
+   // Called by the serilization message loop when a message becomes available. Sorts out
+   // the correct mecahnism to get the message, replicates as needed, and processes the
+   // message using the correct processor for the port.
    void process_message(int index)
    {
       uint8_t buffer[1600];
@@ -340,7 +383,7 @@ double mavlink_last_received_mission_time = 0.0;
          break;
       }
 
-      case PORT_TYPE::TCP:
+      case PORT_TYPE::TCP: // not implemented
          break;
 
       case PORT_TYPE::UDP:
@@ -378,6 +421,7 @@ double mavlink_last_received_mission_time = 0.0;
    }
 
    //==========================================================================================
+   // Sets up a socket for a UDP port replication connection.
    void open_replicate(PORTS index, string key)
    {
       if (config.lookup(key) != "on")
@@ -391,29 +435,116 @@ double mavlink_last_received_mission_time = 0.0;
 
 
    // **************************************************************************************
+   // Generates an internal message every secon d, which can be used to drive periodic
+   // processing.
    std::thread watchdog_thread;
    void watchdog_thread_task()
    {
+      log_event("Watchdog thread starting");
+      prctl(PR_SET_NAME, "watchdogZombie");
+
       while (true)
       {
          delay(1000);
          send_port_message(PORTS::INTERNAL_RX_SENDING, "WDG tick");
+
+         //TODO: this is just for testing
+         send_ping_request(imu_gnss_compass_data);
+
+         struct MAVlink_internal_message_struct msg = { MAVlinkIDs::HEARTBEAT, {0, 0} };
+
+         send_port_binary(PORTS::MAVLINK_SENDING, &msg, sizeof(msg));
       }
    }
 
    // **************************************************************************************
+   // Loops through MAVlink requests to periodically refresh the MAVlink ROV data. 
    std::thread mavlink_thread;
    void mavlink_thread_task()
    {
+      log_event("MAVlink threead starting");
+      prctl(PR_SET_NAME, "mavlinkZombie");
+
       bool got_global_origin = false;
 
       string roll = "", pitch = "", yaw = "";
       string lat = "", lon = "";
       string x = "", y = "", z = "", vx = "", vy = "", vz = "";
 
+      // set up the MAVling sending-out listing channel
+      struct pollfd poll_list[1] = { 0 };
+      struct sockaddr_in tempaddr;
+      poll_list[0].fd = port_list[(int)PORTS::MAVLINK_LISTENING].fd;
+      poll_list[0].events = POLLIN;
+      const int loop_period = 500; // not quite 2 Hz
+
       while (true)
       {
-         delay(500); // not quite 2 Hz
+
+         // First see if we need to send stuff out, also sets the period of the loop.
+         while (true)
+         {
+            // check for request to send MAVlink a message
+            poll(poll_list, 1, loop_period);
+
+            struct MAVlink_internal_message_struct msg = { MAVlinkIDs::HEARTBEAT, {0, 0} };
+
+            if (poll_list[0].revents != 0)
+            {
+               socklen_t len = sizeof(tempaddr);
+               ssize_t i = recvfrom(port_list[(int)PORTS::MAVLINK_LISTENING].fd, &msg, sizeof(msg), 0, (sockaddr*)&tempaddr, &len);
+               UNUSED(i);
+               switch (msg.ID)
+               {
+               case MAVlinkIDs::SCALED_PRESSURE:
+                  mavlink->send_mavlink_scaled_pressure(
+                     msg.payload.scaled_pressure.absolute_pressure,
+                     msg.payload.scaled_pressure.temperature_C,
+                     msg.payload.scaled_pressure.sensor_number);
+                  break;
+
+               case MAVlinkIDs::HEARTBEAT:
+                  mavlink->send_mavlink_heartbeat();
+                  break;
+
+               case MAVlinkIDs::DELTA_POSITION:
+                  mavlink->send_mavlink_delta_position_data(
+                     msg.payload.delta_position.dx,
+                     msg.payload.delta_position.dy,
+                     msg.payload.delta_position.dz,
+                     msg.payload.delta_position.delta_t,
+                     msg.payload.delta_position.confidence);
+                  break;
+
+               case MAVlinkIDs::DISTANCE_SENSOR:
+                  mavlink->send_mavlink_distance_sensor(
+                     msg.payload.distance_sensor.d,
+                     msg.payload.distance_sensor.confidence,
+                     msg.payload.distance_sensor.quat);
+                  break;
+
+               case MAVlinkIDs::POSITION:
+                  mavlink->send_mavlink_position(
+                     msg.payload.position.latitude,
+                     msg.payload.position.longitude);
+                  break;
+
+               case MAVlinkIDs::POSITION_UPDATE:
+                  mavlink->send_mavlink_position_update(
+                     msg.payload.position_update.origin_lat,
+                     msg.payload.position_update.origin_lon,
+                     msg.payload.position_update.new_lat,
+                     msg.payload.position_update.new_lon);
+                  break;
+
+               default:
+                  log_severe("unexpected mavlink send request");
+                  break;
+               }
+            }
+            else
+               break; // no message pending
+         }
 
          // check for global origin
          if (!got_global_origin)
@@ -428,14 +559,14 @@ double mavlink_last_received_mission_time = 0.0;
 
          // check for position
          bool result_pos = mavlink->get_mavlink_local_position_ned(x, y, z, vx, vy, vz);
-         if (result_pos)
+         if (result_pos && (x != ""))
          {
             string message = "MAV LOCAL_POSITION," + x + "," + y + "," + z + "," + vx + "," + vy + "," + vz + "\r\n";
             send_port_message(PORTS::INTERNAL_RX_SENDING, message);
          }
 
          bool result_or = mavlink->get_mavlink_attitude(roll, pitch, yaw);
-         if (result_or)
+         if (result_or && (roll != ""))
          {
             string message = "MAV ORIENTATION," + roll + "," + pitch + "," + yaw + "\r\n";
             send_port_message(PORTS::INTERNAL_RX_SENDING, message);
@@ -443,11 +574,55 @@ double mavlink_last_received_mission_time = 0.0;
       }
    }
 
+   // **************************************************************************************
+   // Sets up a linux poll() to look for all the possible incoming messages.
+   void message_loop()
+   {
+      // set up the polling list
+      struct pollfd poll_list[COUNT(port_list)] = { 0 };
+
+      // go do the poll
+      while (true)
+      {
+         for (int i = 0; i < (int)(COUNT(port_list)); i++)
+         {
+            poll_list[i].fd = port_list[i].fd;
+            if (port_list[i].switched_off)
+               poll_list[i].events = 0;
+            else
+               poll_list[i].events = POLLIN;
+            poll_list[i].revents = 0;
+         }
+
+         poll(poll_list, (int)COUNT(poll_list), 2000);
+
+         for (int i = 0; i < (int)(COUNT(poll_list)); i++)
+         {
+            if (!port_list[i].switched_off)
+            {
+               if (poll_list[i].revents == 0)
+               {
+               }
+               else if ((poll_list[i].revents & (POLLHUP | POLLRDHUP | POLLERR)) != 0)
+               {
+               }
+               else if (poll_list[i].revents == POLLIN)
+               {
+                  process_message(i);
+               }
+               else
+               {
+                  log_severe("Serializer message moll triggered by unexpected revents value\n");
+               }
+            }
+         }
+      }
+   }
 
    //==========================================================================================
+   // open the various types of input ports/channels on startup
    void ports()
    {
-      // open the various types in inputs
       for (unsigned int i = 0; i < COUNT(port_list); i++)
       {
          switch (port_list[i].port_type)
@@ -468,7 +643,7 @@ double mavlink_last_received_mission_time = 0.0;
          }
             break;
 
-         case PORT_TYPE::TCP:
+         case PORT_TYPE::TCP: // not implemented
             break;
 
          case PORT_TYPE::UDP:
@@ -479,7 +654,7 @@ double mavlink_last_received_mission_time = 0.0;
             }
             {
                string port = "";
-               if (contains("replicate", port_list[i].serialname) || contains("internal", port_list[i].serialname))
+               if (contains("replicate", port_list[i].serialname) || contains("internal", port_list[i].serialname) || contains("mavlink", port_list[i].serialname))
                   port = config.lookup(port_list[i].serialname + "-port");
                else
                   port = config.lookup(port_list[i].serialname);
@@ -522,12 +697,15 @@ double mavlink_last_received_mission_time = 0.0;
       open_replicate(PORTS::TRACKER650_REPLICATE, "tracker650-replicate");
       open_replicate(PORTS::MAVLINK_REPLICATE, "mavlink-replicate");
 
+      // Set up the destination UDP for the internal message channel
       port_list[(int)PORTS::INTERNAL_RX_SENDING].cliaddr.sin_family = AF_INET;
       port_list[(int)PORTS::INTERNAL_RX_SENDING].cliaddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
       port_list[(int)PORTS::INTERNAL_RX_SENDING].cliaddr.sin_port = htons((int16_t)std::stoi(config.lookup("internal-listening-port")));
 
-      // set up the polling list
-      struct pollfd poll_list[COUNT(port_list)] = { 0 };
+      // Set up the destination UDP for the MAVlink outgoing message channel
+      port_list[(int)PORTS::MAVLINK_SENDING].cliaddr.sin_family = AF_INET;
+      port_list[(int)PORTS::MAVLINK_SENDING].cliaddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+      port_list[(int)PORTS::MAVLINK_SENDING].cliaddr.sin_port = htons((int16_t)std::stoi(config.lookup("mavlink-listening-port")));
 
       // start watchdog
        watchdog_thread = std::thread(watchdog_thread_task);
@@ -540,49 +718,31 @@ double mavlink_last_received_mission_time = 0.0;
 
       mavlink_thread = std::thread(mavlink_thread_task);
 
-      // go do the poll
-      while (true)
-      {
-         for (int i = 0; i < (int)(COUNT(port_list)); i++)
-         {
-            poll_list[i].fd = port_list[i].fd;
-            if(port_list[i].switched_off )
-               poll_list[i].events = 0;
-            else
-               poll_list[i].events = POLLIN;
-         }
-
-         poll(poll_list, (int)COUNT(poll_list), 2000);
-
-         for (int i = 0; i < (int)(COUNT(poll_list)); i++)
-         {
-            if (poll_list[i].revents != 0)
-            {
-               process_message(i);
-//               printf(" =  poll %d\n", i);
-            }
-         }
-      }
+      message_loop();
    }
 
 
 } // namespace
 
 // **************************************************************************************
-void disconnect(enum PORTS device)
+// Disconnects a port/channel from the message receive loop. IMPORTANT: does not change
+// message sending, so yo may neet to checked 'switched off' status when sending.  
+void port_disconnect(enum PORTS device)
 {
    port_list[(int)device].switched_off = true;
    send_port_message(PORTS::INTERNAL_RX_SENDING, "");
 }
 
 // **************************************************************************************
-void reconnect(enum PORTS device)
+// Reconnects a port/channel to the message receive loop.
+void port_reconnect(enum PORTS device)
 {
    port_list[(int)device].switched_off = false;
    send_port_message(PORTS::INTERNAL_RX_SENDING, "");
 }
 
 // **************************************************************************************
+// Sends a binary message to a port/channel using the appropriate mechanism.
 bool send_port_binary(enum PORTS device, void* message, size_t sizeis)
 {
    // map device to order of ports_list
@@ -617,6 +777,8 @@ bool send_port_binary(enum PORTS device, void* message, size_t sizeis)
 }
 
 // **************************************************************************************
+// Sends a string message to a port/channel using the appropriate mechanism.
+// todo: could probably re-implement in terms of send_port_binary().
 bool send_port_message(enum PORTS device, string message)
 {
    // map device to order of ports_list
@@ -637,7 +799,7 @@ bool send_port_message(enum PORTS device, string message)
       s = sendto(port_list[mapped_device].fd, message.c_str(), message.length(), MSG_CONFIRM, 
          (const sockaddr*)&(port_list[mapped_device].cliaddr), sizeof(port_list[mapped_device].cliaddr));
       if( s < 0)
-         log_warning("Sending message in port to %d: %s\n", (int)device, strerror(errno));
+         log_warning("failed sending message in port to %d: %s\n", (int)device, strerror(errno));
       user_mode();
 
    default:
@@ -646,24 +808,47 @@ bool send_port_message(enum PORTS device, string message)
 
    if (s < 0)
    {
-      log_warning("failed sending string in port: %s", strerror(errno));
+      log_warning("failed sending string in port to %d: %s", (int)device, strerror(errno));
       return false;
    }
 
    return true;
 }
 
+
 // **************************************************************************************
-bool set_baud_rate(enum PORTS device, string baud_rate)
+// This is used by the ST Firmware bootloader to slam the ROVL_RX port between the
+// normal mode 115200,n,8,1 (cononical/line mode) and bootloader mode 
+// 115200,e,8,1 (non/canonical raw)
+bool port_set_canonical(enum PORTS device, bool canonical, bool set_even_parity)
 {
    // map device to order of ports_list
    int mapped_device = (int)device;
 
-   return setSerialDevice(port_list[mapped_device].fd, baud_rate, "8", "none", "1");
+   ztclose(port_list[mapped_device].fd);
+
+   sudo_mode();
+   string filename = config.lookup(port_list[mapped_device].serialname);
+
+   port_list[mapped_device].fd = openSerialDevice(filename, true, port_list[mapped_device].baud_rate,
+      canonical, set_even_parity, false, false);
+   user_mode();
+
+   if (port_list[mapped_device].fd < 0)
+   {
+      log_severe("Opening serial device %d in ports: %s", mapped_device, strerror(errno));
+      return false;
+   }
+
+   tcflush(port_list[mapped_device].fd, TCIOFLUSH);
+
+   return true;
 }
 
 
+
 // **************************************************************************************
+// Entry point
 bool ports_main()
 {
    log_event("Serializer starting");
@@ -673,4 +858,66 @@ bool ports_main()
 
    return false;
 }
+
+// **************************************************************************************
+// Used by external users of a port to receive messages. The port should be disconneted
+// from the serializer message loop before calling this.
+int receive_from(enum PORTS device, void* message, size_t sizeis, int timeout_ms)
+{
+   if (port_list[(int)device].port_type == PORT_TYPE::SERIAL)
+   {
+      struct pollfd poll_list[1] = { port_list[(int)device].fd, POLLIN, 0 };
+      poll(poll_list, 1, timeout_ms);
+
+      if (poll_list[0].revents != 0)
+      {
+         ssize_t i = read(port_list[(int)device].fd, message, sizeis);
+         return (int)i;
+      }
+      else
+      {
+         return 0;
+      }
+   }
+
+   else if (port_list[(int)device].port_type != PORT_TYPE::UDP)
+   {
+      struct pollfd poll_list[1] = { 0 };
+      struct sockaddr_in tempaddr;
+
+      poll_list[0].fd = port_list[(int)device].fd;
+      poll_list[0].events = POLLIN;
+      poll(poll_list, 1, timeout_ms);
+
+      if (poll_list[0].revents != 0)
+      {
+         socklen_t len = sizeof(tempaddr);
+         ssize_t i = recvfrom(port_list[(int)device].fd, message, sizeis, 0, (sockaddr*)&tempaddr, &len);
+         return (int)i;
+      }
+      else
+      {
+         return 0;
+      }
+   }
+
+   else
+   {
+      log_severe("unimplemented receive type %d in serilaizer", (int)device);
+      return 0;
+   }
+}
+
+// **************************************************************************************
+// String version. The port should be disconneted from the serializer message loop
+// before calling this.
+string receive_from(enum PORTS device, int timeout_ms)
+{
+   uint8_t buffer[1600];
+   int len = receive_from(device, buffer, sizeof(buffer), timeout_ms);
+
+   string result((char*)buffer, len);
+   return result;   
+}
+
 

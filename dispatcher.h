@@ -1,5 +1,6 @@
 #pragma once
 
+#if false
 #include "utilities.h"
 
 #include <poll.h>
@@ -13,4 +14,4 @@ bool unregister(int fd);
 void do_events();
 
 extern bool kill_event_loop;
-
+#endif

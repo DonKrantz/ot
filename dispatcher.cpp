@@ -1,4 +1,6 @@
 
+#if false
+
 #include "dispatcher.h"
 #include <assert.h>
 #include <stdlib.h>
@@ -78,3 +80,5 @@ void do_events()
 
    assert(false); // no items in poll list
 }
+
+#endif

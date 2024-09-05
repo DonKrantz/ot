@@ -137,6 +137,8 @@ bool MAVlink::get_mavlink_attitude(string& roll, string& pitch, string& yaw)
 		return false;
 
 	string js = jstring;
+	if (js == "None")
+		return false;
 
 	roll = value_of("roll", js);
 	pitch = value_of("pitch", js);
@@ -157,6 +159,8 @@ bool MAVlink::get_mavlink_local_position_ned(string& x, string& y, string& z, st
 		return false;
 
 	string js = jstring;
+	if (js == "None")
+		return false;
 
 	x = value_of("x", js);
 	y = value_of("y", js);
@@ -319,11 +323,11 @@ bool MAVlink::send_mavlink_delta_position_data(float dx, float dy, float dz,
 
 namespace {
 
-	const char* orthogonize(QUATERNION mounted)
+	const char* orthogonize(Quaternion mounted)
 	{
-		VECTOR3 unit = { 0, 0, 1 };
+		vec3 unit = { 0, 0, 1 };
 
-		VECTOR3 b = mounted.Rotate(unit);
+		vec3 b = mounted.Rotate(unit);
 
 		b.x = round(b.x);
 		b.y = round(b.y);
@@ -348,7 +352,7 @@ namespace {
 } // namespace
 
 //==================================================================================
-bool MAVlink::send_mavlink_distance_sensor(float d, int confidence, QUATERNION quat)
+bool MAVlink::send_mavlink_distance_sensor(float d, int confidence, Quaternion quat)
 {
 	strcpy(formerJSON, JSON_payload); // save for debugging
 

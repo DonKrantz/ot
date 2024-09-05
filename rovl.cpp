@@ -1,6 +1,7 @@
 #include "rovl.h"
 #include "utilities.h"
 #include "system_state.h"
+#include "gnss_ping_protocol.h"
 
 // ======================================================================
 void rovl_reset_status()
@@ -36,14 +37,10 @@ void decode_poll(string s)
 
 
 // ======================================================================
-struct usrth_message usrth;
-
-
-// ======================================================================
 void parse_usrth(string s)
 {
-   usrth.ping_group_valid = true;
-   usrth.imu_group_valid = true;
+   rovl_usrth.ping_group_valid = true;
+   rovl_usrth.imu_group_valid = true;
 
    string dummys;
    bool dummyb;
@@ -52,28 +49,31 @@ void parse_usrth(string s)
 
       &dummys, &dummyb, // the message ID
 
-      & usrth.apparent_bearing_math, &usrth.ping_group_valid,
-      & usrth.apparent_bearing_compass, &usrth.ping_group_valid,
-      & usrth.apparent_elevation, &usrth.ping_group_valid,
-      & usrth.slant_range, &usrth.ping_group_valid,
-      & usrth.true_bearing_math, &usrth.ping_group_valid,
-      & usrth.true_bearing_compass, &usrth.ping_group_valid,
-      & usrth.true_elevation, &usrth.ping_group_valid,
+      & rovl_usrth.apparent_bearing_math, &rovl_usrth.ping_group_valid,
+      & rovl_usrth.apparent_bearing_compass, &rovl_usrth.ping_group_valid,
+      & rovl_usrth.apparent_elevation, &rovl_usrth.ping_group_valid,
+      & rovl_usrth.slant_range, &rovl_usrth.ping_group_valid,
+      & rovl_usrth.true_bearing_math, &rovl_usrth.ping_group_valid,
+      & rovl_usrth.true_bearing_compass, &rovl_usrth.ping_group_valid,
+      & rovl_usrth.true_elevation, &rovl_usrth.ping_group_valid,
 
-      & usrth.euler_roll, &usrth.imu_group_valid,
-      & usrth.euler_pitch, &usrth.imu_group_valid,
-      & usrth.euler_yaw, &usrth.imu_group_valid,
-      & usrth.heading, &usrth.imu_group_valid,
+      & rovl_usrth.euler_roll, &rovl_usrth.imu_group_valid,
+      & rovl_usrth.euler_pitch, &rovl_usrth.imu_group_valid,
+      & rovl_usrth.euler_yaw, &rovl_usrth.imu_group_valid,
+      & rovl_usrth.heading, &rovl_usrth.imu_group_valid,
 
-      & usrth.adc_gain, &usrth.dummy,
-      & usrth.autosync_supported, &usrth.dummy,
-      & usrth.autosync_active, &usrth.dummy,
-      & usrth.seconds_since_sync, &usrth.dummy,
-      & usrth.imu_status, &usrth.dummy,
-      & usrth.channel, &usrth.dummy,
-      & usrth.id_decoded, &usrth.dummy,
-      & usrth.id_queried, &usrth.dummy
+      & rovl_usrth.adc_gain, &rovl_usrth.dummy,
+      & rovl_usrth.autosync_supported, &rovl_usrth.dummy,
+      & rovl_usrth.autosync_active, &rovl_usrth.dummy,
+      & rovl_usrth.seconds_since_sync, &rovl_usrth.dummy,
+      & rovl_usrth.imu_status, &rovl_usrth.dummy,
+      & rovl_usrth.channel, &rovl_usrth.dummy,
+      & rovl_usrth.id_decoded, &rovl_usrth.dummy,
+      & rovl_usrth.id_queried, &rovl_usrth.dummy
    );
+
+   // TODO: Request Gnss orientation/location 
+   send_ping_request(imu_gnss_compass_data);
 
 }
 
@@ -140,6 +140,7 @@ void parse_rovlrx(string s, double timestamp)
    if (contains("$USRTH", s))
    {
       parse_usrth(s);
+
       // todo: this is where the serializer delivers ROVL $USRTH messages
 
    }

@@ -57,14 +57,11 @@ struct usrth_message {
 
 struct usimu_message { // also fits USIMX message
 	float delta_t;
-	VECTOR3 accel;
-	VECTOR3 mag;
-	VECTOR3 gyro;
+	vec3 accel;
+	vec3 mag;
+	vec3 gyro;
 	bool is_pinging;
 };
-
-
-extern struct usrth_message usrth;
 
 
 

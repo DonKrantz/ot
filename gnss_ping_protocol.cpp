@@ -1,13 +1,15 @@
 #include "gnss_ping_protocol.h"
 #include "utilities.h"
 #include "packet_defs.h"
-
-//#include "serializer_main.h"
+#include "system_state.h"
+#include "serializer_main.h"
 
 
 
 #define PACKED_STRUCT __attribute__((__packed__))
-
+// these ping messages are not defined in packet_def.h
+#define ID_SET_PING_PARAMS    1015
+#define ID_ALTITUDE           1211     // ping calls this 'distance_simple'
 
 namespace {
 
@@ -136,19 +138,19 @@ namespace {
 	} PACKED_STRUCT;
 
 	// imu_gnss_compass_data
-	typedef float Quaternion[4]; // todo: placeholder for Michael's definition
+// defined in system_state.h	typedef float Quaternion[4]; // todo: placeholder for Michael's definition
 	typedef char Time[8]; // todo: placeholder for Michael's definition
 	typedef float vec3[3]; // todo: placeholder for Michael's definition
 
-	struct IMU_DATA 
-	{ 
-		uint32_t	time_msec; 
-		Quaternion att_quaternion; 
-		vec3	fused_up_vec; 
-		vec3	fused_mag_vec; 
-		vec3	last_accel; 
-		vec3	last_gyro; 
-		vec3	last_mag; 
+	struct IMU_DATA
+	{
+		uint32_t	time_msec;
+		Quaternion att_quaternion;
+		vec3	fused_up_vec;
+		vec3	fused_mag_vec;
+		vec3	last_accel;
+		vec3	last_gyro;
+		vec3	last_mag;
 	};
 
 	struct IMU_GNSS_COMPASS_DATA
@@ -210,6 +212,55 @@ namespace {
 
 		return (uint16_t)sum;
 	}
+
+} // namespace
+
+	//==========================================================================================
+	void send_ping_request(uint16_t requested_id)
+	{
+		uint8_t buffer[256] = { 0 }; // so we don't try to make a whole PING message on the stack
+		PING_MESSAGE* p = (PING_MESSAGE*)buffer;
+
+		p->B = 'B';
+		p->R = 'R';
+		p->payload_length = 2;
+		p->packet_id = general_request;
+		p->source_id = 0;
+		p->destination_id = 0;
+		p->payload.uint16.value = requested_id;
+		p->payload.uint16.checksum = checksum_of((void*)buffer, SIZEOF_PING_HEADER + sizeof(struct UINT16_MESSAGE) - SIZEOF_CHECKSUM);
+
+		send_port_binary(PORTS::GNSS, p, SIZEOF_PING_HEADER + sizeof(struct UINT16_MESSAGE));
+	}
+
+	//==========================================================================================
+	// This is a Sounder-only message type
+	void set_ping_parameters(int16_t msec_per_ping)
+	{
+		uint8_t buffer[256] = { 0 }; // so we don't try to make a whole PING message on the stack
+		PING_MESSAGE* p = (PING_MESSAGE*)buffer;
+
+		p->B = 'B';
+		p->R = 'R';
+		p->payload_length = sizeof(struct SET_PING_PARAMS) - SIZEOF_CHECKSUM;
+		p->packet_id = ID_SET_PING_PARAMS;
+		p->source_id = 0;
+		p->destination_id = 0;
+		p->payload.ping_params.start_mm = 0;
+		p->payload.ping_params.length_mm = 100 * 1000;
+		p->payload.ping_params.gain_index = -1; // auto
+		p->payload.ping_params.msec_per_ping = msec_per_ping;
+		p->payload.ping_params.ping_duration_usec = 0;  // auto
+		p->payload.ping_params.report_id = ID_ALTITUDE;
+		p->payload.ping_params.num_results_requested = 0;
+		p->payload.ping_params.chirp = 1;
+		p->payload.ping_params.decimation = 0; // auto;
+		p->payload.ping_params.checksum = checksum_of(buffer, SIZEOF_PING_HEADER + sizeof(struct SET_PING_PARAMS) - SIZEOF_CHECKSUM);
+
+		send_port_binary(PORTS::GNSS, p, SIZEOF_PING_HEADER + sizeof(struct SET_PING_PARAMS));
+	}
+
+	namespace {
 
 	//==========================================================================================
 	uint16_t validate_ping_protocol_header(PING_MESSAGE* msg)
@@ -305,38 +356,45 @@ namespace {
 
 
 	//==========================================================================================
-	void process_imu_gnss_compass_data(PING_MESSAGE* p)
+	void process_imu_gnss_compass_data(PING_MESSAGE* p, double timestamp)
 	{
-		int status = p->payload.imu_gnss_compass_data.status;
-		Quaternion orientation;
-		memcpy(orientation, p->payload.imu_gnss_compass_data.orientation, sizeof(Quaternion));
-		Quaternion offset;
-		memcpy(offset, p->payload.imu_gnss_compass_data.offset, sizeof(Quaternion));
-		float roll_rate = p->payload.imu_gnss_compass_data.roll_rate;
-		float pitch_rate = p->payload.imu_gnss_compass_data.pitch_rate;
-		float yaw_rate = p->payload.imu_gnss_compass_data.yaw_rate;
-		float lat = p->payload.imu_gnss_compass_data.lat;
-		float lon = p->payload.imu_gnss_compass_data.lon;
+		gnss_status = p->payload.imu_gnss_compass_data.status;
+		gnss_orientation = p->payload.imu_gnss_compass_data.orientation;
+		gnss_offset = p->payload.imu_gnss_compass_data.offset;
+		float gnss_roll_rate = p->payload.imu_gnss_compass_data.roll_rate;
+		float gnss_pitch_rate = p->payload.imu_gnss_compass_data.pitch_rate;
+		float gnss_yaw_rate = p->payload.imu_gnss_compass_data.yaw_rate;
+		float gnss_lat = p->payload.imu_gnss_compass_data.lat;
+		float gnss_lon = p->payload.imu_gnss_compass_data.lon;
 
 		char temp[400];
-		snprintf(temp, sizeof(temp), "GNSS_CD, stat, %02X, Qor {, %f, %f, %f, %f, }, Qoff {, %f, %f, %f, %f, }, rr, %f, pr, %f, yr, %f, lat, %f, lon %f",
-			status,
-			orientation[0],
-			orientation[1],
-			orientation[2],
-			orientation[3],
-			offset[0],
-			offset[1],
-			offset[2],
-			offset[3],
-			roll_rate,
-			pitch_rate,
-			yaw_rate,
-			lat,
-			lon
+		snprintf(temp, sizeof(temp), "GNSS_CD, stat, %02X, Qor {, %f, %f, %f, %f, }, Qoff"
+			" {, %f, %f, %f, %f, }, rr, %f, pr, %f, yr, %f, lat, %f, lon %f, r, %1.2f, p, %1.2f, y, %1.2f, h, %1.2f",
+			gnss_status,
+			gnss_orientation.w,
+			gnss_orientation.x,
+			gnss_orientation.y,
+			gnss_orientation.z,
+			gnss_offset.w,
+			gnss_offset.x,
+			gnss_offset.y,
+			gnss_offset.z,
+			gnss_roll_rate,
+			gnss_pitch_rate,
+			gnss_yaw_rate,
+			gnss_lat,
+			gnss_lon,
+			gnss_orientation.Roll(),
+			gnss_orientation.Pitch(),
+			gnss_orientation.Yaw(),
+			gnss_orientation.Heading()
 		);
 
-		log_data(":%s", temp);
+		printf("%s\n", temp);
+
+		log_data("%s", temp);
+
+
 	}
 
 	//==========================================================================================
@@ -344,7 +402,7 @@ namespace {
 	{
 		uint32_t	time_msec = p->payload.imu_data.time_msec;
 		Quaternion att_quaternion;
-		memcpy(att_quaternion, p->payload.imu_data.att_quaternion, sizeof(Quaternion));
+		att_quaternion = p->payload.imu_data.att_quaternion;
 		vec3	fused_up_vec;
 		memcpy(fused_up_vec, p->payload.imu_data.fused_up_vec, sizeof(vec3));
 		vec3	fused_mag_vec;
@@ -360,10 +418,10 @@ namespace {
 		char temp[400];
 		snprintf(temp, sizeof(temp), "GNSS ID, time, %d, att_q, {, %f, %f, %f, %f, }, fusedup, {, %f, %f, %f, }, fusedmag, {, %f, %f, %f, }, lastaccel, {, %f, %f, %f, }, lastgyro, {, %f, %f, %f, }, lastmag, {, %f, %f, %f, }",
 			time_msec,
-			att_quaternion[0],
-			att_quaternion[1],
-			att_quaternion[2],
-			att_quaternion[3],
+			att_quaternion.w,
+			att_quaternion.x,
+			att_quaternion.y,
+			att_quaternion.z,
 			fused_up_vec[0],
 			fused_up_vec[1],
 			fused_up_vec[2],
@@ -380,14 +438,12 @@ namespace {
 			last_mag[1],
 			last_mag[2]);
 
-		log_data(":%s", temp);
+		log_data("%s", temp);
 	}
 
 
 
 } // namespace
-
-
 
 
 //==========================================================================================
@@ -416,7 +472,7 @@ void process_incoming_gnss(uint8_t* buffer, size_t length, double timestamp)
 			break;
 
 		case imu_gnss_compass_data:
-			process_imu_gnss_compass_data(p); // todo: the serializer delivers new GNSS/IMU data here. Now do something with it.
+			process_imu_gnss_compass_data(p, timestamp); // todo: the serializer delivers new GNSS/IMU data here. Now do something with it.
 			break;
 
 		default:

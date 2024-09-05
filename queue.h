@@ -1,3 +1,5 @@
+#if false
+
 #pragma once
 #include <string.h>
 #include <stdlib.h>
@@ -26,4 +28,4 @@ public:
 
 	int my_fd()					{ return m_rxfd; }
 };
-
+#endif

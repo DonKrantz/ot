@@ -30,6 +30,9 @@
 #include "serializer_main.h"
 #include "rovl.h"
 #include "tracker650.h"
+#include "STbootloader_main.h"
+
+#include "system_state.h"
 
 #define PORT ((uint16_t)std::stoi(config.lookup("http-port")))
 #define slash (config.lookup("webhome"))
@@ -364,6 +367,9 @@ void do_index(int fd, string path, string options)
 
    br(fd, 1);
 
+   wprintf(fd, "<a href = \"system_state?%s\">Show system state snapshot</a>\r\n", mangle_opt().c_str());
+   br(fd, 2);
+
    wprintf(fd, "<h3>" MYNAME " Settings</h3>");
 
    wprintf(fd, "<a href = \"setup?%s\">Basic Set Up " MYNAME "</a>\r\n", mangle_opt().c_str());
@@ -373,7 +379,7 @@ void do_index(int fd, string path, string options)
    wprintf(fd, "<a href = \"update?%s\">Update firmware cache (must be connected to internet)</a>\r\n", mangle_opt().c_str());
    br(fd, 3);
 
-   wprintf(fd, "<a href = \"rovl?%s\">Configure USBL</a>\r\n", mangle_opt().c_str());
+   wprintf(fd, "<a href = \"rovl?%s\">Configure USBL/ROVL</a>\r\n", mangle_opt().c_str());
    br(fd, 2);
    wprintf(fd, "<a href = \"mavlink?%s\">Add/Manage Mavlink REST Server Connection</a>\r\n", mangle_opt().c_str());
    br(fd, 2);
@@ -945,11 +951,9 @@ void do_discover(int fd, string path, string options)
 
    wprintf(fd, "<p><b>Looking for devices...</b></p>");
 
-   //
-
    FILE* f;
 
-   string cmd = "sudo " + config.lookup("userhome") + "/cm4 discover 0 1";
+   string cmd = "sudo " + config.lookup("userhome") + "/ot discover 0 1";
 
    sudo_mode();
    f = popen(cmd.c_str(), "r"); 
@@ -982,7 +986,7 @@ void do_discover(int fd, string path, string options)
          if (sline == "")
             continue;
 
-         string sender = head_of(sline, ",");
+//         string sender = head_of(sline, ",");
 
          if (sline.find("poll completed") != string::npos)
             break;
@@ -1584,7 +1588,7 @@ void do_dvlparameters(int fd, string path, string options)
 //==============================================================================
 void do_rovl(int fd, string path, string options)
 {
-   standard_header(fd, "Configure the USBL Device");
+   standard_header(fd, "Configure the USBL/ROVL Device");
 
    wprintf(fd, "<form action='rovl2' method='POST'>\r\n");
 
@@ -1597,15 +1601,15 @@ void do_rovl(int fd, string path, string options)
    send_port_message(PORTS::ROVL_RX, "?\n");
    delay(1500);
 
-   wprintf(fd, "USBL systems check:\r\n");
+   wprintf(fd, "USBL/ROVL systems check:\r\n");
    br(fd, 1);
 
-   wprintf(fd, "- USBL/ROVL-RX subsystem %s\r\n", rovl_valid_rx ? "is OK" : "Failed to connect");
+   wprintf(fd, "- USBL/ROVL subsystem %s\r\n", rovl_valid_rx ? "is OK" : "Failed to connect");
    br(fd, 2);
 
    if (rovl_valid_rx)
    {
-      wprintf(fd, "USBL/ROVL-RX subsystem firmware is %s\r\n", rovl_firmware_rx.c_str());
+      wprintf(fd, "USBL/ROVL subsystem firmware is %s\r\n", rovl_firmware_rx.c_str());
       br(fd, 1);
 
       wprintf(fd, "<label for='new-rovl-sos'>Using speed of sound: </label>\r\n");
@@ -1633,16 +1637,10 @@ void do_rovl(int fd, string path, string options)
 
       wprintf(fd, "Polling ID sequence: %s\r\n", rovl_polling_ids_human_readable.c_str());
       br(fd, 2);
-
-//      if( rovl_using_CIMU )
-//         wprintf(fd, "USBL using IMU in CIMU mode for fallback heading\r\n");
-//      else
-//         wprintf(fd, "USBL NOT using IMU in CIMU mode -- this is an error! Contact Cerulean Sonar\r\n");
-//      br(fd, 2);
    }
    else
    {
-      wprintf(fd, "Unable to connect to ROVL\r\n");
+      wprintf(fd, "Unable to connect to USBL/ROVL\r\n");
       br(fd, 2);
    }
 
@@ -1653,6 +1651,13 @@ void do_rovl(int fd, string path, string options)
    wprintf(fd, "</form>\r\n");
 
    standard_footer(fd);
+
+   br(fd, 2);
+
+//   wprintf(fd, "<h2>USBL/ROVL Firmware</h2>\r\n");
+
+   list_firmware_files(fd, "USBL/ROVL", "ROVL-RX", "ROVL-RX", "Mk III", rovl_firmware_rx, "&device=mkIII");
+
 
 //   post_completed = false;
 }
@@ -1671,7 +1676,7 @@ void do_rovl2(int fd, string path, string options)
    }
    seq_seen = seq;
 
-   standard_header(fd, "Configure the USBL Device");
+   standard_header(fd, "Configure the USBL/ROVL Device");
 
    wprintf(fd, "Updating configuration...\r\n");
    br(fd, 2);
@@ -1823,24 +1828,13 @@ void do_burn_file(int fd, string path, string options)
    if (contains("mkII", device))
    {
       // doing an ROVL
-      wprintf(fd, "<p>Writing to an ROVL via serial port</p>");
+      wprintf(fd, "<p>Writing to a USBL/ROVL via serial port</p>");
+      bool result = STbootloader_main(config.lookup("userhome") + "/firmware/" + name, fd);
 
-      string tty = extract("tty", options, "&");
-      int baud = std::stoi(extract("baud", options, "&"));
-
-      string baud_rate = "115200";
-      if (baud == B9600) baud_rate = "9600";
-
-      string nvm_base = extract("nvm-base", options, "&");
-      string nvm_size = extract("nvm-size", options, "&");
-      if (!contains("IIr", device))
-      {
-         nvm_base = "0x00000000";
-         nvm_size = "0";
-      }
-
-//      bipipe(bcb, "r", arg0name, 8, "serbfw", "0", "0", (config.lookup("userhome") + "/firmware/" + name).c_str(),
-//         tty.c_str(), nvm_base.c_str(), nvm_size.c_str(), baud_rate.c_str());
+      if( result )
+         wprintf(fd, "<p>Firmware update successful</p>");
+      else
+         wprintf(fd, "<p>Firmware update failed</p>");
    }
 
    else if (device == "dvlmaster")
@@ -1861,6 +1855,12 @@ void do_burn_file(int fd, string path, string options)
    else if (device == "tracker650")
    {
       wprintf(fd, "<p>Writing to Tracker 650 via Ethernet</p>");
+      bool result = fwdvl_main(config.lookup("userhome") + "/firmware/" + name, fd);
+
+      if (result)
+         wprintf(fd, "<p>Firmware update successful</p>");
+      else
+         wprintf(fd, "<p>Firmware update failed</p>");
 
 //      bipipe(bcb, "r", arg0name, 5, "dvlfw", (config.lookup("userhome") + "/firmware/" + name).c_str(),
 //         ip.c_str(), port.c_str(), "1,0,0,0,0");
@@ -1935,7 +1935,7 @@ void do_update(int fd, string path, string optiopns)
       wprintf(fd, "<p>Select file categories for updating:</p>\r\n");
 
       checkbox(fd, "Update " MYNAME " drivers and files", "omnitrack-files", true, 1);
-      checkbox(fd, "Update ROVL files", "rovl-files", true, 1);
+      checkbox(fd, "Update USBL/ROVL files", "rovl-files", true, 1);
       checkbox(fd, "Update Tracker 650 files", "tracker650-files", true, 1);
       checkbox(fd, "Update DVL-75 files", "dvl75-files", true, 1);
 
@@ -1978,9 +1978,9 @@ void do_update2(int fd, string path, string options)
 //   post_completed = true;
 }
 
-#if false
+#if true
 //==============================================================================
-void do_replicate(int fd, string path, string options)
+void do_sys_state(int fd, string path, string options)
 {
    // try to prevent re-posting
    static long int seq_seen = 0;
@@ -1993,93 +1993,75 @@ void do_replicate(int fd, string path, string options)
    }
    seq_seen = seq;
 
-   standard_header(fd, "Serial and USB Port Replication");
-
+   standard_header(fd, "System State");
    br(fd, 2);
 
-   wprintf(fd, "<form action='replicate' method='POST'>");
-
-   wprintf(fd, "<input type='hidden' id='next-webpage' name='next-webpage' value='replicate'>\r\n");
-
-   struct reppel_depple {
-      string display_name;
-      string port_name;
-      string file_name;
-      string root_name;
-   } replicate[] =
+   wprintf(fd, "MAVLlink/Ardusub: %s\r\n", mav_comm_active ? "Comm connected" : "Comm Not Connected");
+   if (mav_comm_active)
    {
-      { "Serial 1", "serial1", lookup_serial(1), "replicate-1" },
-      { "Serial 2", "serial2", lookup_serial(2), "replicate-2" },
-      { "USB 1", "usb1", lookup_usb(1), "replicate-3" },
-      { "USB 2", "usb2", lookup_usb(2), "replicate-4" },
-   };
-
-   for (struct reppel_depple& r : replicate)
-   {
-      if (r.file_name == "")
-      {
-         wprintf(fd, "<b>%s port</b> has no USB device attached", r.display_name.c_str());
-         wprintf(fd, "<input type='hidden' id='%s' name='%s' value='off'>\r\n",
-            r.root_name.c_str(), r.root_name.c_str());
-         br(fd, 3);
-         continue;
-      }
-
-      wprintf(fd, "<b>%s Replication</b><span padding='3'></span>", r.display_name.c_str());
-      string iam = config.lookup(r.root_name);
-      string assigned = config.reverse_lookup(r.port_name);
-      bool ok = (assigned == "") || (assigned == r.root_name);
-      bool checked = iam != "off";
-      string caveat = ((assigned != "") && (assigned != r.root_name)) ? " -- already assigned to " + assigned : "";
-      radio(fd, "Enabled", r.root_name, r.port_name, checked, -2, ok, "");
-      radio(fd, "Disabled", r.root_name, "off", !checked, 1, ok, caveat);
-
-      wprintf(fd, "<label for='%s-ip'>UDP port to replicate to: </label>\r\n", r.root_name.c_str());
-      do_ip_port_address(fd, r.root_name + "-ip", config.lookup(r.root_name + "-ip"), true);
-      br(fd, 1);
-
-      wprintf(fd, "<label for='%s-localport'>Local UDP port to listen on: </label>\r\n", r.root_name.c_str());
-      wprintf(fd, "<input type='number' id='%s-localport' name='%s-localport' value='%s' min='1001' max='49151' style='text-align:center; width:5em' title='Port is >1000 and < 49152' required>\r\n",
-         r.root_name.c_str(), r.root_name.c_str(), config.lookup(r.root_name + "-localport").c_str());
-      br(fd, 1);
-
-      wprintf(fd, "Baud rate: <input type='number' id='%s-baud' name='%s-baud' value='%s' pattern='9600|19200|38400|57600|115200' style='text-align:center; width:5em' title='baud 9600|19200|38400|57600|115200' required>\r\n",
-         r.root_name.c_str(), r.root_name.c_str(), config.lookup(r.root_name + "-baud").c_str());
-      wprintf(fd, "<span padding = 3></span>\r\n");
-
-      wprintf(fd, "Data bits: <input type='number' id='%s-data' name='%s-data' value='%s' pattern='7|8' style='text-align:center; width:3em' title='7 or 8' required>\r\n",
-         r.root_name.c_str(), r.root_name.c_str(), config.lookup(r.root_name + "-data").c_str());
-      wprintf(fd, "<span padding = 3></span>\r\n");
-
-      wprintf(fd, "Parity: <input type='text' id='%s-parity' name='%s-parity' value='%s' pattern='none|odd|even' style='text-align:center; width:4em' title='none or odd or even' required>\r\n",
-         r.root_name.c_str(), r.root_name.c_str(), config.lookup(r.root_name + "-parity").c_str());
-      wprintf(fd, "<span padding = 3></span>\r\n");
-
-      wprintf(fd, "Stop bits: <input type='number' id='%s-stops' name='%s-stops' value='%s' pattern='1|2' style='text-align:center; width:3em' title='1 or 2' required>\r\n",
-         r.root_name.c_str(), r.root_name.c_str(), config.lookup(r.root_name + "-stops").c_str());
-      wprintf(fd, "<span padding = 3></span>\r\n");
-
-      br(fd, 1);
-
-      if (r.port_name == "serial1")
-      {
-         checkbox(fd, "Use CTS/RTS hardware handshaking", "replicate-1-hardware-handshake", 
-            config.lookup("replicate-1-hardware-handshake") == "on", 1);
-      }
-
-      string filename = r.file_name;
-      head_of(filename, "/"); // strip off the path
-      head_of(filename, "/");
-      wprintf(fd, "<input type='hidden' id='%s-filename' name='%s-filename' value='%s'>\r\n",
-         r.root_name.c_str(), r.root_name.c_str(), filename.c_str());
-
-      br(fd, 2);
+      if (mav_global_origin_valid)
+         wprintf(fd, "<span padding=2></span>(Global Origin valid, lat=%1.10f, lon=%1.10f)\r\n",
+            mav_global_origin_lat, mav_global_origin_lon);
+      else
+         wprintf(fd, "<span padding=2></span>(Global Origin not valid)\r\n");
    }
+   br(fd, 1);
 
-   commit_reset(fd, "Commit");
+   wprintf(fd, "GNSS: %s\r\n", gnss_comm_active ? "Comm connected" : "Comm Not Connected");
+   br(fd, 1);
 
-   wprintf(fd, "</form>");
+   if (gnss_comm_active)
+   {
+      wprintf(fd, "<span padding=2></span>GNSS Valid: %s\r\n", gnss_valid_status ? "True" : "False");
+      br(fd, 1);
 
+      if (gnss_valid_status)
+      {
+         wprintf(fd, "<span padding=2></span>Mag Valid: %s\r\n", gnss_mag_valid ? "True" : "False");
+         br(fd, 1);
+
+         wprintf(fd, "<span padding=2></span>Position Valid: %s\r\n", gnss_position_valid ? "True" : "False");
+         br(fd, 1);
+
+         wprintf(fd, "<span padding=2></span>Calibrating: %s\r\n", gnss_calibrating ? "True" : "False");
+         br(fd, 1);
+
+         wprintf(fd, "<span padding=2></span>Calibration Valid: %s\r\n", gnss_calibration_valid ? "True" : "False");
+         br(fd, 1);
+
+         wprintf(fd, "<span padding=2></span>Base OK: %s\r\n", gnss_base_ok ? "True" : "False");
+         br(fd, 1);
+
+         wprintf(fd, "<span padding=2></span>Rover OK: %s\r\n", gnss_rover_ok ? "True" : "False");
+         br(fd, 1);
+
+         wprintf(fd, "<span padding=2></span>Base Lock: %s\r\n", gnss_base_lock ? "True" : "False");
+         br(fd, 1);
+
+         wprintf(fd, "<span padding=2></span>Rover Lock: %s\r\n", gnss_rover_lock ? "True" : "False");
+         br(fd, 1);
+      }
+   }
+  
+
+   wprintf(fd, "USBL/ROVL: %s\r\n", rovl_comm_active ? "Comm connected" : "Comm Not Connected");
+   if (rovl_comm_active)
+      wprintf(fd, "<span padding=2></span>%s\r\n", (rovl_usrth.ping_group_valid) ? "(Receiving from ROV TX" : "(Not receiving from ROV TX)");
+   br(fd, 1);
+
+   wprintf(fd, "Tracker 650/DVL: %s\r\n", t650_comm_active ? "Comm connected" : "Comm Not Connected");
+   if (t650_comm_active)
+      wprintf(fd, "<span padding=2></span>%s\r\n", (t650_dvpdx.confidence > 0) ? "(Has bottom lock)" : "(No bottom lock)");
+   br(fd, 1);
+
+   //==
+ //  wprintf(fd, "dummy\r\n");
+ //  br(fd, 1);
+
+
+
+   br(fd, 2);
+   wprintf(fd, "<a href = 'system_state?%s'>Refresh Values</a>\r\n", mangle_opt().c_str());
    standard_footer(fd);
 }
 #endif
@@ -2099,11 +2081,9 @@ namespace {
    {
       {"/index.html",      do_index,      do_index },
       {"/",                do_index,      do_index },
-//      {"/gps",             do_gps,        do_optionsinput },
-//      {"/bar",             do_bar,        do_optionsinput },
+      {"/system_state",    do_sys_state,  do_sys_state },
       {"/rovl",            do_rovl,       do_rovl},
       {"/rovl2",           do_rovl2,      do_rovl2},
-//      {"/rovl3",           do_rovl3,      do_rovl3},
       {"/burn_file",       do_burn_file,  do_burn_file},
       {"/logger",          do_logger,     do_optionsinput},
       {"/discover",        do_discover,   do_discover},
@@ -2115,10 +2095,7 @@ namespace {
       {"/restart",         do_restart,    do_restart},
       {"/update",          do_update,     do_update},
       {"/update2",         do_update2,    do_update2},
-//      {"/ping2",           do_ping2,      do_optionsinput},
-//      {"/s500",            do_s500,       do_optionsinput},
       {"/mavlink",         do_mavlink,    do_optionsinput},
-//      {"/replicate",       do_replicate,  do_optionsinput},
    };
 } // namespace
 
@@ -2184,27 +2161,12 @@ bool web_main()
    log_event("Web server starting");
    prctl(PR_SET_NAME, "webZombie");
 
-   // load configuration system data
-//   config = new configuration("/home/cerulean/cm.config.txt");
-
    struct sigaction sa = { SIG_IGN };
    sigaction(SIGPIPE, &sa, NULL); // ignore SIGPIPE
 
-//   arg0name = argv[0];
-
    slash = (config.lookup("userhome") + "/web");
 
-
-//   if (argc < 4)
-//   {
-//      log_severe("command line error");
-//      exit(EXIT_FAILURE);
-//   }
-
-//   in_pipe_fd = std::stoi(argv[argc - 2]);
-//   out_pipe_fd = std::stoi(argv[argc - 1]);
-
-   int server_fd, new_socket, pid;
+   int server_fd, new_socket;
    struct sockaddr_in address;
    int addrlen = sizeof(address);
 
@@ -2258,99 +2220,84 @@ bool web_main()
       /* Set the timeout option active */
       int optval = 1;
       socklen_t optlen = sizeof(optval);
-      if (setsockopt(new_socket, SOL_SOCKET, SO_KEEPALIVE, &optval, optlen) < 0) 
+      if (setsockopt(new_socket, SOL_SOCKET, SO_KEEPALIVE, &optval, optlen) < 0)
          log_warning("setsockopt()");
 
-      //Create child process to handle request from different client
-      //pid = fork();
-      pid = 0; // so debugger works
-      if (pid < 0) {
-         log_severe("Forking A! In web. Error is: %s", strerror(errno));
-         exit(EXIT_FAILURE);
-      }
+      char buffer[3000] = { 0 };
+      int offset = 0;
+      int valread = 0;
 
-      if (pid == 0) 
+      while (true)
       {
-         char buffer[3000] = { 0 };
-         int offset = 0;
-         int valread = 0;
-
-         while (true)
-         {
-            int thistime = (int)read(new_socket, buffer + offset, sizeof(buffer) - 1 - offset);
-            if (thistime < 1)
-               break;
-
-            set_fd_nonblocking(new_socket);
-            offset += thistime;
-            valread += thistime;
-            delay(200);
-         }
-
-         if (valread == 0)
+         int thistime = (int)read(new_socket, buffer + offset, sizeof(buffer) - 1 - offset);
+         if (thistime < 1)
             break;
 
-         buffer[valread] = '\0';
+         set_fd_nonblocking(new_socket);
+         offset += thistime;
+         valread += thistime;
+         delay(200);
+      }
 
-         string sbuffer(buffer, valread);
+      if (valread == 0)
+         break;
 
-         string method = head_of(sbuffer, " \r\n\t");
+      buffer[valread] = '\0';
 
-         string path = head_of(sbuffer, " \r\n\t");
+      string sbuffer(buffer, valread);
 
-         sbuffer = sbuffer.substr(sbuffer.find("\r\n\r\n") + 4); // sbuffer should be the body, if any
+      string method = head_of(sbuffer, " \r\n\t");
 
-         if( !contains("/about", path )) // ignore annoying request from Mavlink
-            log_event("Client %s asked for: %s", address_image((struct sockaddr_in*)&address).c_str(), path.c_str());
+      string path = head_of(sbuffer, " \r\n\t");
 
-         string ext3 = path;
-         string ext2 = head_of(ext3, ".?");
-         string ext = ext3;
+      sbuffer = sbuffer.substr(sbuffer.find("\r\n\r\n") + 4); // sbuffer should be the body, if any
 
-         string reply_header = http_ok_header;
+      if (!contains("/about", path)) // ignore annoying request from Mavlink
+         log_event("Client %s asked for: %s", address_image((struct sockaddr_in*)&address).c_str(), path.c_str());
 
-         if (method == "GET")
-         {
+      string ext3 = path;
+      string ext2 = head_of(ext3, ".?");
+      string ext = ext3;
 
-            string content_type = "";
-            
-            try {
-               content_type = extensions.at(tolower(ext));
-            }
-            catch (...) {}
+      string reply_header = http_ok_header;
 
-            if (content_type != "")
-            {
-               string path_head = slash;
-               path_head += path;
-               reply_header += content_type;
-               send_file(new_socket, (char*)path_head.c_str(), (char*)reply_header.c_str());
-            }
-            else
-            {
-               //send other file 
-               do_file(new_socket, path, "GET", "");
-            }
-            //log_event("\n------------------Server sent----------------------------------------------------\n");
+      if (method == "GET")
+      {
+
+         string content_type = "";
+
+         try {
+            content_type = extensions.at(tolower(ext));
          }
-         else if (method == "POST")
+         catch (...) {}
+
+         if (content_type != "")
          {
-               do_file(new_socket, path, "POST", sbuffer);
+            string path_head = slash;
+            path_head += path;
+            reply_header += content_type;
+            send_file(new_socket, (char*)path_head.c_str(), (char*)reply_header.c_str());
          }
          else
          {
-            // error unimplemented request type
+            //send other file 
+            do_file(new_socket, path, "GET", "");
          }
-
+         //log_event("\n------------------Server sent----------------------------------------------------\n");
       }
-      else 
+      else if (method == "POST")
       {
-         log_event(">>>>>>>>>>Parent create child with pid: %d <<<<<<<<<", pid);
+         do_file(new_socket, path, "POST", sbuffer);
       }
+      else
+      {
+         // error unimplemented request type
+      }
+
       ztclose(new_socket);
    }
-   ztclose(server_fd);
-   return 0;
+   ztclose(new_socket);
+   return false;
 }
 
 

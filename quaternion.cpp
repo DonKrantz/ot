@@ -2,34 +2,80 @@
  * quaternion.cpp
  *
  *  Created on: Jul 2, 2018
+ *  Revised August 2022
  *      Author: Don
+ *
+ *  Yaw: East is 0 deg and North is 90.
+ *  Heading: North is 0 deg, east is 90, south is 180 and west is 270
  */
 
 
+#include "quaternion.h"
 #include "math.h"
 #include "string.h" // for strcmp
-#include "quaternion.h"
 
-#define fPI 3.14159265358979f
-
-double dot(const VECTOR3& a, const VECTOR3& b)
-{
-	double result = 0.0;
-	result = a.x * b.x + a.y * b.y + a.z * b.z;
-	return result;
-};
+#define fPI ((float)M_PI) 
 
 
-// ***************************************************************************************************
-// construct a quaternion equal to 1
-QUATERNION::QUATERNION()
+ // ***************************************************************************************************
+ // construct a quaternion equal to 1
+Quaternion::Quaternion()
 	: w(1.0f), x(0.0f), y(0.0f), z(0.0f)
 {
 }
 
+// derived from THREE.js library functions which set a rotation matrix from basis vectors
+// then gets the quaternion from the rotation matrix
+// seems to work! LL june 2024
+void Quaternion::setFromBasisVectors(const vec3& x_axis, const vec3& y_axis, const vec3& z_axis)
+{
+	float m11 = x_axis.x;
+	float m21 = x_axis.y;
+	float m31 = x_axis.z;
+	float m12 = y_axis.x;
+	float m22 = y_axis.y;
+	float m32 = y_axis.z;
+	float m13 = z_axis.x;
+	float m23 = z_axis.y;
+	float m33 = z_axis.z;
+
+	float trace = m11 + m22 + m33;
+
+	if (trace > 0)
+	{
+		float s = 0.5f / sqrtf(trace + 1.0f);
+		this->w = 0.25f / s;
+		this->x = (m32 - m23) * s;
+		this->y = (m13 - m31) * s;
+		this->z = (m21 - m12) * s;
+	}
+	else if (m11 > m22 && m11 > m33) {
+
+		float s = 2.0f * sqrtf(1.0f + m11 - m22 - m33);
+		this->w = (m32 - m23) / s;
+		this->x = 0.25f * s;
+		this->y = (m12 + m21) / s;
+		this->z = (m13 + m31) / s;
+	}
+	else if (m22 > m33) {
+		float s = 2.0f * sqrtf(1.0f + m22 - m11 - m33);
+		this->w = (m13 - m31) / s;
+		this->x = (m12 + m21) / s;
+		this->y = 0.25f * s;
+		this->z = (m23 + m32) / s;
+	}
+	else {
+		float s = 2.0f * sqrtf(1.0f + m33 - m11 - m22);
+		this->w = (m21 - m12) / s;
+		this->x = (m13 + m31) / s;
+		this->y = (m23 + m32) / s;
+		this->z = 0.25f * s;
+	}
+}
+
 // ***************************************************************************************************
 // Returns the Norm (magnitude) of the quaternion
-double QUATERNION::Norm()
+FLOAT Quaternion::Norm() const
 {
 	return sqrt(w * w + x * x + y * y + z * z);
 }
@@ -37,10 +83,10 @@ double QUATERNION::Norm()
 
 // ***************************************************************************************************
 // Normalizes a quaternion
-void QUATERNION::Normalize()
+void Quaternion::Normalize()
 {
 	// set all quaternions to unit vector
-	double magnitude = sqrt(w * w + x * x + y * y + z * z);
+	FLOAT magnitude = sqrt(w * w + x * x + y * y + z * z);
 
 	if (magnitude == 0.0f)
 	{
@@ -58,7 +104,7 @@ void QUATERNION::Normalize()
 
 // ***************************************************************************************************
 // Constructs a quaternion from Euler angles given in degrees or radians
-QUATERNION::QUATERNION(double roll, double pitch, double yaw, ANGLE_TYPE units)
+Quaternion::Quaternion(FLOAT roll, FLOAT pitch, FLOAT yaw, ANGLE_TYPE units)
 {
 	if (units == ANGLE_TYPE::DEGREES)
 	{
@@ -66,22 +112,22 @@ QUATERNION::QUATERNION(double roll, double pitch, double yaw, ANGLE_TYPE units)
 		pitch = pitch / 180.0f * fPI;
 		roll = roll / 180.0f * fPI;
 	}
-	double cy = cos(yaw * 0.5f);
-	double sy = sin(yaw * 0.5f);
-	double cr = cos(roll * 0.5f);
-	double sr = sin(roll * 0.5f);
-	double cp = cos(pitch * 0.5f);
-	double sp = sin(pitch * 0.5f);
+	FLOAT cy = cos(yaw * 0.5f);
+	FLOAT sy = sin(yaw * 0.5f);
+	FLOAT cr = cos(roll * 0.5f);
+	FLOAT sr = sin(roll * 0.5f);
+	FLOAT cp = cos(pitch * 0.5f);
+	FLOAT sp = sin(pitch * 0.5f);
 
-	w = (double)(cy * cr * cp + sy * sr * sp);
-	x = (double)(cy * sr * cp - sy * cr * sp);
-	y = (double)(cy * cr * sp + sy * sr * cp);
-	z = (double)(sy * cr * cp - cy * sr * sp);
+	w = (FLOAT)(cy * cr * cp + sy * sr * sp);
+	x = (FLOAT)(cy * sr * cp - sy * cr * sp);
+	y = (FLOAT)(cy * cr * sp + sy * sr * cp);
+	z = (FLOAT)(sy * cr * cp - cy * sr * sp);
 }
 
 // ***************************************************************************************************
 // Assigns component values to a quaternion from r-p-y in degrees or radians
-void QUATERNION::Assign(double roll, double pitch, double yaw, ANGLE_TYPE units)
+void Quaternion::Assign(FLOAT roll, FLOAT pitch, FLOAT yaw, ANGLE_TYPE units)
 {
 	if (units == ANGLE_TYPE::DEGREES)
 	{
@@ -89,22 +135,22 @@ void QUATERNION::Assign(double roll, double pitch, double yaw, ANGLE_TYPE units)
 		pitch = pitch / 180.0f * fPI;
 		roll = roll / 180.0f * fPI;
 	}
-	double cy = cos(yaw * 0.5f);
-	double sy = sin(yaw * 0.5f);
-	double cr = cos(roll * 0.5f);
-	double sr = sin(roll * 0.5f);
-	double cp = cos(pitch * 0.5f);
-	double sp = sin(pitch * 0.5f);
+	FLOAT cy = cos(yaw * 0.5f);
+	FLOAT sy = sin(yaw * 0.5f);
+	FLOAT cr = cos(roll * 0.5f);
+	FLOAT sr = sin(roll * 0.5f);
+	FLOAT cp = cos(pitch * 0.5f);
+	FLOAT sp = sin(pitch * 0.5f);
 
-	w = (double)(cy * cr * cp + sy * sr * sp);
-	x = (double)(cy * sr * cp - sy * cr * sp);
-	y = (double)(cy * cr * sp + sy * sr * cp);
-	z = (double)(sy * cr * cp - cy * sr * sp);
+	w = (FLOAT)(cy * cr * cp + sy * sr * sp);
+	x = (FLOAT)(cy * sr * cp - sy * cr * sp);
+	y = (FLOAT)(cy * cr * sp + sy * sr * cp);
+	z = (FLOAT)(sy * cr * cp - cy * sr * sp);
 }
 
 // ***************************************************************************************************
 // Assigns component values to a quaternion
-void QUATERNION::Assign(double ww, double xx, double yy, double zz)
+void Quaternion::Assign(FLOAT ww, FLOAT xx, FLOAT yy, FLOAT zz)
 {
 	w = ww;
 	x = xx;
@@ -114,15 +160,15 @@ void QUATERNION::Assign(double ww, double xx, double yy, double zz)
 
 
 // ***************************************************************************************************
-double QUATERNION::Roll(ANGLE_TYPE units)
+FLOAT Quaternion::Roll(ANGLE_TYPE units) const
 {
 	// from https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
 
-	double retval;
+	FLOAT retval;
 
 	// roll (x-axis rotation)
-	double sinr = +2.0f * (w * x + y * z);
-	double cosr = +1.0f - 2.0f * (x * x + y * y);
+	FLOAT sinr = +2.0f * (w * x + y * z);
+	FLOAT cosr = +1.0f - 2.0f * (x * x + y * y);
 	retval = atan2(sinr, cosr);
 
 	if (units == ANGLE_TYPE::DEGREES)
@@ -132,16 +178,16 @@ double QUATERNION::Roll(ANGLE_TYPE units)
 }
 
 // ***************************************************************************************************
-double QUATERNION::Pitch(ANGLE_TYPE units)
+FLOAT Quaternion::Pitch(ANGLE_TYPE units) const
 {
 	// from https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
 
-	double retval;
+	FLOAT retval;
 
 	// pitch (y-axis rotation)
-	double sinp = +2.0f * (w * y - z * x);
+	FLOAT sinp = +2.0f * (w * y - z * x);
 	if (fabs(sinp) >= 1.0f)
-		retval = sinp < 0.0f ? (double)fPI / -2.0f : (double)fPI / 2.0f; // use 90 degrees if out of range
+		retval = sinp < 0.0f ? (FLOAT)fPI / -2.0f : (FLOAT)fPI / 2.0f; // use 90 degrees if out of range
 	else
 		retval = asin(sinp);
 
@@ -152,15 +198,15 @@ double QUATERNION::Pitch(ANGLE_TYPE units)
 }
 
 // ***************************************************************************************************
-double QUATERNION::Yaw(ANGLE_TYPE units)
+FLOAT Quaternion::Yaw(ANGLE_TYPE units) const
 {
 	// from https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
 
-	double retval;
+	FLOAT retval;
 
 	// yaw (z-axis rotation)
-	double siny = +2.0f * (w * z + x * y);
-	double cosy = +1.0f - 2.0f * (y * y + z * z);
+	FLOAT siny = +2.0f * (w * z + x * y);
+	FLOAT cosy = +1.0f - 2.0f * (y * y + z * z);
 	retval = atan2(siny, cosy);
 
 	if (units == ANGLE_TYPE::DEGREES)
@@ -169,13 +215,26 @@ double QUATERNION::Yaw(ANGLE_TYPE units)
 	return retval;
 }
 
+// ***************************************************************************************************
+FLOAT Quaternion::Heading(ANGLE_TYPE units /*= ANGLE_TYPE::DEGREES*/)
+{
+	float heading = 90.0f - Yaw();
+	if (heading < 0.0f)
+		heading += 360.0f;
+
+	if (units == ANGLE_TYPE::DEGREES)
+		return heading;
+	else
+		return heading / 180.0f * fPI;
+}
+
 
 // ***************************************************************************************************
 // Multiply Quaternions   courtesy of Erik Beall
 // quaternion product, q0 = q2 x q1
-QUATERNION QUATERNION::operator * (QUATERNION qr)
+Quaternion Quaternion::operator * (Quaternion qr)
 {
-	QUATERNION q;
+	Quaternion q;
 
 	// from https://www.mathworks.com/help/aeroblks/quaternionmultiplication.html
 	q.w = qr.w * w - qr.x * x - qr.y * y - qr.z * z;
@@ -187,9 +246,9 @@ QUATERNION QUATERNION::operator * (QUATERNION qr)
 
 // ***************************************************************************************************
 // Return the conjugate of the quaternion
-QUATERNION QUATERNION::Conjugate()
+Quaternion Quaternion::Conjugate() const
 {
-	QUATERNION q = *this;
+	Quaternion q = *this;
 
 	q.x = -q.x;
 	q.y = -q.y;
@@ -198,13 +257,21 @@ QUATERNION QUATERNION::Conjugate()
 	return q;
 }
 
+void Quaternion::Invert()
+{
+	x = -x;
+	y = -y;
+	z = -z;
+}
+
+
 // ***************************************************************************************************
 // Return the reciprocal of the quaternion
-QUATERNION QUATERNION::Reciprocal()
+Quaternion Quaternion::Reciprocal() const
 {
-	QUATERNION q = this->Conjugate();
+	Quaternion q = this->Conjugate();
 
-	double nsq = w * w + x * x + y * y + z * z;
+	FLOAT nsq = w * w + x * x + y * y + z * z;
 
 	q.w /= nsq;
 	q.x /= nsq;
@@ -214,22 +281,37 @@ QUATERNION QUATERNION::Reciprocal()
 	return q;
 }
 
-VECTOR3 QUATERNION::Rotate(const VECTOR3 v) const
+// ***************************************************************************************************
+vec3 Quaternion::Rotate(const vec3& v) const
 {
-	double qi = x;
-	double qj = y;
-	double qk = z;
-	double qr = w;
+	FLOAT qi = x;
+	FLOAT qj = y;
+	FLOAT qk = z;
+	FLOAT qr = w;
 
-	double s = std::sqrt(qi * qi + qj * qj + qk * qk + qr * qr);
-	double vx = v.x;
-	double vy = v.y;
-	double vz = v.z;
-	VECTOR3 result
+	FLOAT s = std::sqrt(qi * qi + qj * qj + qk * qk + qr * qr);
+	FLOAT vx = v.x;
+	FLOAT vy = v.y;
+	FLOAT vz = v.z;
+	vec3 result
 	{
 		(1 - 2 * s * (qj * qj + qk * qk)) * vx + 2 * s * (qi * qj - qk * qr) * vy + 2 * s * (qi * qk + qj * qr) * vz,
 		2 * s * (qi * qj + qk * qr) * vx + (1 - 2 * s * (qi * qi + qk * qk)) * vy + (2 * s * (qj * qk - qi * qr)) * vz,
 		2 * s * (qi * qk - qj * qr) * vx + 2 * s * (qj * qk + qi * qr) * vy + (1 - 2 * s * (qi * qi + qj * qj)) * vz
 	};
 	return result;
+}
+
+void Quaternion::setFromAxisAngle(const vec3& axis, float radians)
+{
+	// http://www.euclideanspace.com/maths/geometry/rotations/conversions/angleToQuaternion/index.htm
+
+	// assumes axis is normalized
+	const float half_angle = radians / 2.0f;
+	const float s = sinf(half_angle);
+
+	x = axis.x * s;
+	y = axis.y * s;
+	z = axis.z * s;
+	w = cosf(half_angle);
 }

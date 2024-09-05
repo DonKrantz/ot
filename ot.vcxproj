@@ -83,6 +83,7 @@
     <ClCompile Include="tiny_json.cpp" />
     <ClCompile Include="tracker650.cpp" />
     <ClCompile Include="utilities.cpp" />
+    <ClCompile Include="vecs.cpp" />
     <ClCompile Include="webserver.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -104,6 +105,7 @@
     <ClInclude Include="tiny_json.h" />
     <ClInclude Include="tracker650.h" />
     <ClInclude Include="utilities.h" />
+    <ClInclude Include="vecs.h" />
     <ClInclude Include="webserver.h" />
   </ItemGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">

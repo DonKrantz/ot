@@ -34,7 +34,7 @@ public:
 
 	// This message sends sounder data. The quaternion is the angle of the sensor
 	// with respect to the ROV frame, in NED coordinates.
-	bool send_mavlink_distance_sensor(float d, int confidence, QUATERNION quat);
+	bool send_mavlink_distance_sensor(float d, int confidence, Quaternion quat);
 
 	// This message keeps the link alive when otherwise idle.
 	bool send_mavlink_heartbeat();
@@ -42,6 +42,7 @@ public:
 	// Send the global initial position or a position update
 	bool send_mavlink_position(double latitude, double longitude);
 
+	// Send a position or a position update
 	bool send_mavlink_position_update(double origin_lat, double origin_lon, double new_lat, double new_lon);
 
 	// Send a pressure/temperature reading. Sensor #2 is the water pressure reading on a Blue ROV.
@@ -70,4 +71,58 @@ private:
 	const void wait_semaphore() const;
 	const void give_semaphore() const;
 };
+
+// Messages we can send back to the MAVlink server through the serializer 
+enum class MAVlinkIDs { HEARTBEAT, DELTA_POSITION, DISTANCE_SENSOR, POSITION, POSITION_UPDATE, SCALED_PRESSURE };
+
+#define PACKED_STRUCT __attribute__((__packed__))
+
+// This message used for ROV position hold function
+struct delta_position_struct {
+	float dx;
+	float dy;
+	float dz;
+	float delta_t;
+	int confidence;
+}; // PACKED_STRUCT;
+
+// This message sends sounder data. The quaternion is the angle of the sensor
+// with respect to the ROV frame, in NED coordinates.
+struct distance_sensor_struct {
+	float d;
+	int confidence;
+	Quaternion quat;
+}; // PACKED_STRUCT;
+
+// Send the global initial position or a position update
+struct position_struct {
+	double latitude;
+	double longitude;
+}; // PACKED_STRUCT;
+
+// send an update to the positon in terms of global origin
+struct position_update_struct {
+	double origin_lat; // the ROV's global origin
+	double origin_lon; // the ROV's global origin
+	double new_lat; // the new postion
+	double new_lon; // the new postion
+}; // PACKED_STRUCT;
+
+// Sends a pressure reading
+struct scaled_pressure_struct {
+	double absolute_pressure;
+	double temperature_C;
+	int sensor_number; // typically use 2
+};// PACKED_STRUCT;
+
+struct MAVlink_internal_message_struct {
+	enum MAVlinkIDs ID;
+	union {
+		delta_position_struct delta_position;
+		distance_sensor_struct distance_sensor;
+		position_struct position;
+		position_update_struct position_update;
+		scaled_pressure_struct scaled_pressure;
+	} payload;
+};//  PACKED_STRUCT;
 

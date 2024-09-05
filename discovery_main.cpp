@@ -358,6 +358,8 @@ bool discover_main(int argc, char* argv[])
 		for (auto& c : s) c = (c == '\r' ? '|' : c); // change the '\r' to '|'
 		for (auto& c : s) c = (c == '\n' ? '|' : c); // change the '\n' to '|'
 
-		log_data("discovered: %s", s.c_str());
+		printf("discovered: %s\n", s.c_str());
+
+//		log_data("discovered: %s", s.c_str());
 	}
 }

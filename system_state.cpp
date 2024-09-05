@@ -14,6 +14,8 @@ string rovl_polling_ids_human_readable = "";
 uint16_t rovl_polling_ids_mask = 0;
 bool rovl_comm_active = false;
 
+struct usrth_message rovl_usrth;
+
 bool t650_valid = false;
 string t650_dvnvm;
 struct dvpdx_message t650_dvpdx;
@@ -35,5 +37,13 @@ double mav_vy = 0.0;
 double mav_vz = 0.0;
 bool mav_comm_active = false;
 
+int gnss_status;
+Quaternion gnss_orientation;
+Quaternion gnss_offset;
+float gnss_roll_rate;
+float gnss_pitch_rate;
+float gnss_yaw_rate;
+float gnss_lat;
+float gnss_lon;
 bool gnss_comm_active = false;
 

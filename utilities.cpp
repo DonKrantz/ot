@@ -31,15 +31,6 @@ using std::string;
 
 TIMING mission_start_time = Clock().now();
 
-#if false
-int in_pipe_fd = 0;
-int out_pipe_fd = 1;
-
-char component_id[30] = "(MASTER-THREAD)";
-#endif
-
-char* argvzero = NULL;
-
 //==========================================================================================
 string keyvalkey(const string s, const string splitter)
 {
@@ -60,7 +51,7 @@ string keyvalvalue(const string s, const string splitter)
    return s.substr(e + 1, s.size());
 }
 
-#if true
+#if false
 //============================================================================================================
 LINE_BUFFER::LINE_BUFFER(int fd, bool ignore_blanks)
 {
@@ -410,7 +401,7 @@ int openSerialDevice(string filename, bool raw_mode, int baud_rate,
    tty.c_lflag &= ~ECHONL; // Disable new-line echo
    tty.c_lflag &= ~ISIG; // Disable interpretation of INTR, QUIT and SUSP
    tty.c_iflag &= ~(IXON | IXOFF | IXANY); // Turn off s/w flow ctrl
-   if (raw_mode)
+   if (raw_mode) // this actually always sets raw mode regardless of input
    {
       tty.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL); // Disable any special handling of received bytes
    }

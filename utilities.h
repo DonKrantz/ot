@@ -22,10 +22,11 @@ using std::list;
 #define MYNAME "OmniTrack"
 #define MYOUT "ot"
 
-#if true
+#if false
 // Provides line buffering to a line-oriented input file. 
 // This supports non-blocking reading if the input fd is set to
 // non-blocking.
+// Should be used only in single-threaded applications
 class LINE_BUFFER
 {
 private:
@@ -101,8 +102,6 @@ bool ping(const string address, const string ip_from);
 // size (element count) of a C array
 #define COUNT(x) (sizeof(x)/sizeof(x[0]))
 
-extern Queue main_queue;
-
 extern std::thread discovery_thread;
 extern std::thread ports_thread;
 extern std::thread web_thread;
@@ -172,10 +171,6 @@ void wprintf(int sockfd, const char* fmt, ...);
 
 // needed because the debugger leaves inconvenient zombie processes running
 void kill_the_zombies();
-
-void kill_kids();
-
-extern char* argvzero;
 
 // =========================================================================
 
@@ -253,8 +248,8 @@ bool NMEA_checksum_valid(string input);
 //extern MAVlink* mavlink;
 
 #define ROVL_RX_TTY "/dev/ttyAMA3"
-#define ROVL_TX_TTY "/dev/ttyAMA2"
+//#define ROVL_TX_TTY "/dev/ttyAMA2"
 #define GNSS_BASE_TTY "/dev/ttyAMA5"
 #define GNSS_ROVER_TTY "/dev/ttyAMA4"
 
-extern int write_to_ports_fd;
+#define degrees(x) (x * 180.0 / M_PI)
