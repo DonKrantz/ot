@@ -74,10 +74,12 @@
     <ClCompile Include="logger.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="MAVlink.cpp" />
+    <ClCompile Include="OmniFusion.cpp" />
     <ClCompile Include="quaternion.cpp" />
     <ClCompile Include="serializer_main.cpp" />
     <ClCompile Include="queue.cpp" />
     <ClCompile Include="rovl.cpp" />
+    <ClCompile Include="LogSimulator.cpp" />
     <ClCompile Include="STbootloader_main.cpp" />
     <ClCompile Include="system_state.cpp" />
     <ClCompile Include="tiny_json.cpp" />
@@ -95,11 +97,13 @@
     <ClInclude Include="GPIO.h" />
     <ClInclude Include="logger.h" />
     <ClInclude Include="MAVlink.h" />
+    <ClInclude Include="OmniFusion.h" />
     <ClInclude Include="packet_defs.h" />
     <ClInclude Include="quaternion.h" />
     <ClInclude Include="serializer_main.h" />
     <ClInclude Include="queue.h" />
     <ClInclude Include="rovl.h" />
+    <ClInclude Include="LogSimulator.h" />
     <ClInclude Include="STbootloader_main.h" />
     <ClInclude Include="system_state.h" />
     <ClInclude Include="tiny_json.h" />

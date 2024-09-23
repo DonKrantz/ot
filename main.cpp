@@ -39,6 +39,8 @@
 #include "gnss_ping_protocol.h"
 #include "rovl.h"
 
+#include "LogSimulator.h"
+
 #include <pwd.h>
 
 #include <math.h>

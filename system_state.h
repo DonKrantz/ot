@@ -2,12 +2,16 @@
 #include "tracker650.h"
 #include "rovl.h"
 #include "gnss_ping_protocol.h"
+#include "OmniFusion.h"
 
 
 // A place to collect the current state of the system
 
 #include <string>
 using std::string;
+
+// Fusion Model
+extern OmniFusion omnifusion;
 
 // ROVL group
 extern bool rovl_valid_rx;

@@ -13,6 +13,9 @@
 
 #define FLOAT float	// there are a lot of 0.123f style constants in the code anyway
 
+
+#define fPI ((float)M_PI) 
+
  // QUATERNION
  //
  // Identifies the orientation of a body. Better than Euler angles because there is no gimbal-lock phenomenon.

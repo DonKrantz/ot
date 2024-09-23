@@ -2,6 +2,8 @@
 #include "rovl.h"
 #include "tracker650.h"
 
+OmniFusion omnifusion = OmniFusion();
+
 bool rovl_valid_rx = false;
 bool configured_correctly_rx = false;
 int rovl_transmit_id = -1;

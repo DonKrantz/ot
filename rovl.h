@@ -27,6 +27,8 @@ void rovl_reset_status();
 
 void parse_rovlrx(string s, double timestamp);
 
+void parse_usrth(string s);
+
 struct usrth_message {
 
 	bool ping_group_valid = false;

@@ -140,7 +140,7 @@ void parse_rovlrx(string s, double timestamp)
    if (contains("$USRTH", s))
    {
       parse_usrth(s);
-
+      omnifusion.fuseRovl(rovl_usrth.apparent_bearing_math, rovl_usrth.apparent_elevation, rovl_usrth.slant_range);
       // todo: this is where the serializer delivers ROVL $USRTH messages
 
    }

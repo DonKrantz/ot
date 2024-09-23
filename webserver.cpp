@@ -23,6 +23,10 @@
 #include <sys/prctl.h>
 #include <chrono>
 
+#include <filesystem>
+#include <iostream>
+#include <fstream>
+
 #include "webserver.h"
 #include "utilities.h"
 #include "configuration.h"
@@ -31,6 +35,8 @@
 #include "rovl.h"
 #include "tracker650.h"
 #include "STbootloader_main.h"
+
+#include "LogSimulator.h"
 
 #include "system_state.h"
 
@@ -300,7 +306,7 @@ void list_firmware_files(int fd, string title, string pattern, string mark, stri
             basename = s.substr(0, s.find(" 202"));
 
          string s_vers = fw_version_from_yyyy_mm_dd(basedate);
-
+         
          wprintf(fd, "<p>%s <i>version</i> %s<span padding='3'></span>\r\n", basename.c_str(), s_vers.c_str());
          wprintf(fd, "<a href='delete_file?name=%s'>Delete from Cache</a><span padding='3'></span>\r\n", replace(s, ' ', '+').c_str());
          wprintf(fd, "<a href='burn_file?name=%s%s'>Install in Device</a><span padding='3'></span>\r\n",
@@ -818,7 +824,7 @@ void do_logger(int fd, string path, string options)
 
    br(fd, 1);
 
-   wprintf(fd, "<p><b>Log files on system:</p></b>\r\n");
+   wprintf(fd, "<p><b>Temp log files on system:</p></b>\r\n");
 
    // now list out logfiles
    string cmd = "ls -lh " + config.lookup("webhome") + "/logs/" LOGFILE_ROOT "*.log";
@@ -854,13 +860,78 @@ void do_logger(int fd, string path, string options)
 
          string pathname = "/logs/" + fn;
 
-         string display = fn + " - " + m + " " + t + " " + n + " " + "- size " + s;
+         string time = m + "-" + t + "_" + n;
 
-         wprintf(fd, "<p>%s\r\n", display.c_str());
+         string display = fn + " - " + m + " " + t + " " + n + " - " + s;
+
+         wprintf(fd, "<form action='savelog' method='POST' target='hiddenFrame' onsubmit='setTimeout(function() { location.reload(); }, 100);'>%s\r\n", display.c_str());
+
          wprintf(fd, "<span padding=2></span><a href='delete?file=%s'>delete</a>\r\n", fn.c_str());
          wprintf(fd, "<span padding=2></span><a href='%s' download='%s'>download</a>\r\n", pathname.c_str(), fn.c_str());
-         wprintf(fd, "</p>\r\n", sline.c_str());
+   
+         // Dumb but couldn't find a simpler way to avoid redirecting page with save button
+         wprintf(fd, "<iframe name='hiddenFrame' style='display:none;'></iframe>\r\n");
+
+         //TODO: Allowing saving while writing to file?
+         wprintf(fd, "<input type='hidden' name='fn' value='%s' />\r\n", fn.c_str());
+         wprintf(fd, "<input type='hidden' name='info' value='%s' />\r\n", time.c_str());
+         wprintf(fd, "<span padding=2></span><input type='submit' name='save' value='Save' />");
+         wprintf(fd, "</form>\r\n");
+
       }
+   }
+   wprintf(fd, "<p>End of list</b>\r\n");
+
+   wprintf(fd, "<p><b>Saved log files:</p></b>\r\n");
+
+   // now list out logfiles
+   cmd = "ls -lh " + config.lookup("webhome") + "/savedLogs/*.log";
+   f = popen(cmd.c_str(), "r");
+   if (f == NULL)
+   {
+       log_severe("Unable to open ls process in logger page");
+   }
+   else
+   {
+       char line[132];
+
+       while (fgets(line, sizeof(line), f) != NULL)
+       {
+           string sline = line;
+           if (sline.find("total") != string::npos)
+               continue;
+
+           string p = head_of(sline, " "); // take off permissions
+           string d = head_of(sline, " "); // take off file/dir digit
+           string o = head_of(sline, " "); // take off owner
+           string g = head_of(sline, " "); // take off group
+           string s = head_of(sline, " ");  // take off size
+
+           string fn = sline;
+           string m = head_of(fn, " ");  // take off month
+           string t = head_of(fn, " ");  // take off time or year
+           string n = head_of(fn, " "); // get the base filename into fn
+
+
+           fn = fn.substr(fn.find_last_of("/") + 1, string::npos); // strip off the path
+           fn = fn.substr(0, fn.find_first_of("\n")); // strip off the trailing newline(s)
+
+           string display = fn + " - " + s;
+
+           wprintf(fd, "<form action='replaylog' method='POST' target='hiddenFrame'>%s\r\n", display.c_str());
+
+           //wprintf(fd, "<span padding=2></span><a href='delete?file=%s'>delete</a>\r\n", fn.c_str());
+           //wprintf(fd, "<span padding=2></span><a href='%s' download='%s'>download</a>\r\n", pathname.c_str(), fn.c_str());
+
+           // Dumb but couldn't find a simpler way to avoid redirecting page with save button
+           wprintf(fd, "<iframe name='hiddenFrame' style='display:none;'></iframe>\r\n");
+
+           //TODO: Allowing saving while writing to file?
+           wprintf(fd, "<input type='hidden' name='fn' value='%s' />\r\n", fn.c_str());
+           wprintf(fd, "<span padding=2></span><input type='submit' name='replay' value='Replay' />");
+           wprintf(fd, "</form>\r\n");
+
+       }
    }
    wprintf(fd, "<p>End of list</b>\r\n");
 
@@ -1467,6 +1538,65 @@ void do_mavlink(int fd, string path, string options)
 //   post_completed = false;
 }
 
+//==============================================================================
+void do_savelog(int fd, string path, string options)
+{
+    string webHome = config.lookup("webhome");
+    string fn = extract("fn", options, "&");
+    string newName = extract("info", options, "&");
+
+
+    string encodedColon = "%3A";
+
+    size_t pos = newName.find(encodedColon);
+    if (pos != std::string::npos) {
+        newName.replace(pos, encodedColon.length(), ".");
+    }
+
+    newName = "OT_" + newName;
+    
+    string sourceFile = webHome + "/logs/" + fn;
+    string destinationFile = webHome + "/savedLogs/" + newName + ".log";
+
+	try
+    {
+		std::ifstream src(sourceFile, std::ios::binary);
+		if (!src) 
+        {
+			throw std::runtime_error("Failed to open source file: " + sourceFile);
+		}
+
+		std::ofstream dst(destinationFile, std::ios::binary);
+		if (!dst) 
+        {
+			throw std::runtime_error("Failed to open destination file: " + destinationFile);
+		}
+
+		// Copy contents from source to destination
+		dst << src.rdbuf();
+
+        src.close();
+        dst.close();
+
+	}
+	catch (const std::exception& e) 
+    {
+        log_severe("Failure saving log. Error is: %s", e.what());
+	}
+}
+
+//==============================================================================
+void do_replaylog(int fd, string path, string options) {
+    string fn = extract("fn", options, "&");
+
+    string logPath = config.lookup("webhome") + "/savedLogs/" + fn;
+    omnifusion.setSim(true);
+
+    LogSimulator logSim;
+    logSim.runSimulation(logPath);
+
+    omnifusion.setSim(false);
+}
 
 
 //==============================================================================
@@ -2096,8 +2226,12 @@ namespace {
       {"/update",          do_update,     do_update},
       {"/update2",         do_update2,    do_update2},
       {"/mavlink",         do_mavlink,    do_optionsinput},
+      {"/savelog",         do_savelog,    do_savelog},
+      {"/replaylog",       do_replaylog,  do_replaylog},
    };
 } // namespace
+
+
 
 void do_file(int fd, string inpath, string request_type, string options)
 {

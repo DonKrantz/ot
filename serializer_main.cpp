@@ -34,6 +34,8 @@
 #include "MAVlink.h"
 
 #include "system_state.h"
+#include "LogSimulator.h"
+
 
 namespace {
 
@@ -115,6 +117,12 @@ double mavlink_last_received_mission_time = 0.0;
          string ss((char*)buffer, (size_t)len - 2); // assumes there is a crlf ar the end!
          s = ss;
       }
+
+      //TODO: JUST HERE FOR TESTING DELETE LATER
+ /*     static int x = 0;
+      string heading = std::to_string(x);
+      x += 10;
+      s = "$USRTH," + heading + ",,,100,,,,96.9,-47.3,69.2,159.2,58,T,F,-1,CIMU,A,-2,-2,*01";*/
 
       log_data("%s,%s", ROVL_NAME, s.c_str());
       
@@ -435,7 +443,7 @@ double mavlink_last_received_mission_time = 0.0;
 
 
    // **************************************************************************************
-   // Generates an internal message every secon d, which can be used to drive periodic
+   // Generates an internal message every second, which can be used to drive periodic
    // processing.
    std::thread watchdog_thread;
    void watchdog_thread_task()
@@ -447,9 +455,6 @@ double mavlink_last_received_mission_time = 0.0;
       {
          delay(1000);
          send_port_message(PORTS::INTERNAL_RX_SENDING, "WDG tick");
-
-         //TODO: this is just for testing
-         send_ping_request(imu_gnss_compass_data);
 
          struct MAVlink_internal_message_struct msg = { MAVlinkIDs::HEARTBEAT, {0, 0} };
 
@@ -844,7 +849,6 @@ bool port_set_canonical(enum PORTS device, bool canonical, bool set_even_parity)
 
    return true;
 }
-
 
 
 // **************************************************************************************

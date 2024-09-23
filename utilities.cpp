@@ -1282,7 +1282,7 @@ bool send_message_to_udp_port(int sockfd, string request, string ip_address, str
 
    socklen_t len;
    len = sizeof(cliaddr);  //len is value/result 
-
+   
    int r = (int)sendto(sockfd, request.c_str(), request.length(), MSG_CONFIRM, (const struct sockaddr*)&cliaddr, len);
    if (r < 0)
    {

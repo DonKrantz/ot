@@ -3,6 +3,7 @@
 #include "packet_defs.h"
 #include "system_state.h"
 #include "serializer_main.h"
+#include "vecs.h"
 
 
 
@@ -140,7 +141,7 @@ namespace {
 	// imu_gnss_compass_data
 // defined in system_state.h	typedef float Quaternion[4]; // todo: placeholder for Michael's definition
 	typedef char Time[8]; // todo: placeholder for Michael's definition
-	typedef float vec3[3]; // todo: placeholder for Michael's definition
+	//typedef float vec3[3]; // todo: placeholder for Michael's definition
 
 	struct IMU_DATA
 	{
@@ -394,7 +395,7 @@ namespace {
 
 		log_data("%s", temp);
 
-
+		omnifusion.fuseGnss(gnss_orientation, gnss_lat, gnss_lon);
 	}
 
 	//==========================================================================================
@@ -404,15 +405,15 @@ namespace {
 		Quaternion att_quaternion;
 		att_quaternion = p->payload.imu_data.att_quaternion;
 		vec3	fused_up_vec;
-		memcpy(fused_up_vec, p->payload.imu_data.fused_up_vec, sizeof(vec3));
+		fused_up_vec = p->payload.imu_data.fused_up_vec;
 		vec3	fused_mag_vec;
-		memcpy(fused_mag_vec, p->payload.imu_data.fused_mag_vec, sizeof(vec3));
+		fused_mag_vec = p->payload.imu_data.fused_mag_vec;
 		vec3	last_accel;
-		memcpy(last_accel, p->payload.imu_data.last_accel, sizeof(vec3));
+		last_accel = p->payload.imu_data.last_accel;
 		vec3	last_gyro;
-		memcpy(last_gyro, p->payload.imu_data.last_gyro, sizeof(vec3));
+		last_gyro = p->payload.imu_data.last_gyro;
 		vec3	last_mag;
-		memcpy(last_mag, p->payload.imu_data.last_mag, sizeof(vec3));
+		last_mag = p->payload.imu_data.last_mag;
 
 
 		char temp[400];
@@ -422,21 +423,21 @@ namespace {
 			att_quaternion.x,
 			att_quaternion.y,
 			att_quaternion.z,
-			fused_up_vec[0],
-			fused_up_vec[1],
-			fused_up_vec[2],
-			fused_mag_vec[0],
-			fused_mag_vec[1],
-			fused_mag_vec[2],
-			last_accel[0],
-			last_accel[1],
-			last_accel[2],
-			last_gyro[0],
-			last_gyro[1],
-			last_gyro[2],
-			last_mag[0],
-			last_mag[1],
-			last_mag[2]);
+			fused_up_vec.x,
+			fused_up_vec.y,
+			fused_up_vec.z,
+			fused_mag_vec.x,
+			fused_mag_vec.y,
+			fused_mag_vec.z,
+			last_accel.x,
+			last_accel.y,
+			last_accel.z,
+			last_gyro.x,
+			last_gyro.y,
+			last_gyro.z,
+			last_mag.x,
+			last_mag.y,
+			last_mag.z);
 
 		log_data("%s", temp);
 	}
