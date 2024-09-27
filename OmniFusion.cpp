@@ -3,13 +3,7 @@
 #include "utilities.h"
 #include <vector>
 
-
-
-//TODO: Just testing here
-//OmniFusion f;
-//f.fuseRovl(-90, 0, 300);
-//f.sendDatumToMap();
-
+using std::to_string;
 namespace {
 	//**************************************************************************
 
@@ -45,30 +39,45 @@ namespace {
 	{
 		return lon_meters / (lat_m_p_d * cos(lat_deg / 180 * fPI));
 	}
+
+
+	void sendMapUpdate(string tag, string color, float heading, double lat, double lon)
+	{
+		string update = "MAP-UPDATE," + tag + "," + to_string(lat) + "," +
+			to_string(lon) + "," + to_string(heading) + "," + color;
+
+		send_message_to_udp_port(-1, update, "255.255.255.255", "65001");
+	}
 } // namespace
 
-void OmniFusion::fuseGnss(Quaternion gnss_orientation, float gnss_latitude, float gnss_longitude, bool simData)
+void OmniFusion::fuseGnss(Quaternion gnss_orientation, float gnss_latitude, float gnss_longitude, bool positionValid, float deg_per_sec, bool simData)
 {
 	if (simData ^ is_sim) {
 		return;
 	}
+
 	m_omni_orientation = gnss_orientation;
-	m_omni_lat = gnss_latitude;
-	m_omni_lon = gnss_longitude;
+	m_omni_rotation_rate = deg_per_sec;
+
+	if (positionValid)
+	{
+		m_omni_lat = gnss_latitude;
+		m_omni_lon = gnss_longitude;
+
+		if (gnss_latitude < 44.9 || gnss_latitude > 50 || gnss_longitude < -94 || gnss_longitude > -93) {
+			printf("BAD DATA\n");
+		}
+	}
 
 	sendDatumToMap();
 }
 
 void OmniFusion::fuseRovl(float apparent_bearing_math, float apparent_elevation, float slant_range, bool simData)
 {
+	// Mismatch between simulation mode and using simulation data
 	if (simData ^ is_sim) {
 		return;
 	}
-	//TODO: DELETE LINES. JUST FOR TESTING
-	//slant_range = 100;
-	//static int x = 0;
-	//apparent_bearing_math = 360 - x;
-	//x+= 10;
 
 	//Convert angles to radians
 	apparent_bearing_math *= fPI / 180;
@@ -80,55 +89,64 @@ void OmniFusion::fuseRovl(float apparent_bearing_math, float apparent_elevation,
 
 	// TODO: Omnitrack and ROVL frame are treated the same but they are actually off by 90 deg.
 	
-	// offset of the ROV in the ROVL/Omnitrack frame in meters (Positive Z is up, Positive X is notch)
+	// offset of the ROV in the ROVL frame in meters (Positive Z is up, Positive X is notch)
 	vec3 apparent_location;
 	apparent_location.x = map_radius * cos(apparent_bearing_math);
 	apparent_location.y = map_radius * sin(apparent_bearing_math);
 	apparent_location.z = slant_range * sin(apparent_elevation);
 
 
+	// ROV in GNSS/Omnitrack frame
+	vec3 rov_in_gnss_frame = ROVL_GNSS_OFFSET.Rotate(apparent_location);
+
 	// offset of the ROV in the world frame
 	// TODO: Check that this rotation is correct and not inverted
-	vec3 rov_location = m_omni_orientation.Rotate(apparent_location);
+	vec3 rov_location = m_omni_orientation.Rotate(rov_in_gnss_frame);
 
 	// World space is ENU (x pointing east)
-	m_lat_meters = lat_meters(m_omni_lat) + rov_location.y;
-	m_lon_meters = lon_meters(m_omni_lat, m_omni_lon) + rov_location.x;
+	m_rov_lat_meters = lat_meters(m_omni_lat) + rov_location.y;
+	m_rov_lon_meters = lon_meters(m_omni_lat, m_omni_lon) + rov_location.x;
 
-	m_depth = rov_location.z;
+	m_rov_depth = rov_location.z;
 
 	//double test_lat = meters_to_lat(m_lat_meters);
 
 	////This value changes drastically if we use test_lat instead of m_omni_lat
 	//double test_lon = meters_to_lon(m_omni_lat, m_lon_meters);
-	sendDatumToMap();
+	//sendDatumToMap();
+}
+
+void OmniFusion::fuseRovlTrue(float true_bearing_math, float true_elevation, float slant_range)
+{
+	//Convert angles to radians
+	true_bearing_math *= fPI / 180;
+	true_elevation *= fPI / 180;
+
+	// apparent_bearing_math increases as rov moves counterclockwise relative to receiver.
+	// apparent_elevation decreases as rov moves down
+	float map_radius = cos(true_elevation) * slant_range;
+
+	// TODO: Omnitrack and ROVL frame are treated the same but they are actually off by 90 deg.
+
+	// offset of the ROV in the ROVL frame in meters (Positive Z is up, Positive X is notch)
+	vec3 true_location;
+	true_location.x = map_radius * cos(true_bearing_math);
+	true_location.y = map_radius * sin(true_bearing_math);
+	true_location.z = slant_range * sin(true_elevation);
+
+	// World space is ENU (x pointing east)
+	double rov_lat_meter = lat_meters(m_omni_lat) + true_location.y;
+	double rov_lon_meter = lon_meters(m_omni_lat, m_omni_lon) + true_location.x;
+
+	sendMapUpdate("SEC", "VIOLET", 0, meters_to_lat(rov_lat_meter), meters_to_lon(m_omni_lat, rov_lon_meter));
 }
 
 void OmniFusion::sendDatumToMap()
 {
-	//TODO: Get headings
-	string tag = "TOPSIDE";
-	string color = "GREEN";
-	string heading = "0";
-	string omni_lat = std::to_string(m_omni_lat);
-	string omni_lon = std::to_string(m_omni_lon);
-
-
-	string omni_loc = "MAP-UPDATE," + tag + "," + omni_lat + "," +
-		omni_lon + "," + heading + "," + color;
-
-	tag = "ROV";
-	color = "YELLOW";
-	heading = "0";
-	string rov_lat = std::to_string(meters_to_lat(m_lat_meters));
-	string rov_lon = std::to_string(meters_to_lon(m_omni_lat, m_lon_meters));
-
-	string rov_loc = "MAP-UPDATE," + tag + "," + rov_lat + "," +
-		rov_lon + "," + heading + "," + color;
-
-	send_message_to_udp_port(-1, omni_loc, "255.255.255.255", "65001");
-	send_message_to_udp_port(-1, rov_loc, "255.255.255.255", "65001");
-
+	//TODO: Just here for testing
+	m_rov_orientation = m_omni_orientation;
+	sendMapUpdate("TOPSIDE", m_omni_rotation_rate > 0.3 ? "RED" : "GREEN", m_omni_orientation.Heading(), m_omni_lat, m_omni_lon);
+	sendMapUpdate("ROV", "YELLOW", m_rov_orientation.Heading(), meters_to_lat(m_rov_lat_meters), meters_to_lon(m_omni_lat, m_rov_lon_meters));
 }
 
 // If near poles or date line?

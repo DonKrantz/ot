@@ -920,13 +920,10 @@ void do_logger(int fd, string path, string options)
 
            wprintf(fd, "<form action='replaylog' method='POST' target='hiddenFrame'>%s\r\n", display.c_str());
 
-           //wprintf(fd, "<span padding=2></span><a href='delete?file=%s'>delete</a>\r\n", fn.c_str());
-           //wprintf(fd, "<span padding=2></span><a href='%s' download='%s'>download</a>\r\n", pathname.c_str(), fn.c_str());
 
            // Dumb but couldn't find a simpler way to avoid redirecting page with save button
            wprintf(fd, "<iframe name='hiddenFrame' style='display:none;'></iframe>\r\n");
 
-           //TODO: Allowing saving while writing to file?
            wprintf(fd, "<input type='hidden' name='fn' value='%s' />\r\n", fn.c_str());
            wprintf(fd, "<span padding=2></span><input type='submit' name='replay' value='Replay' />");
            wprintf(fd, "</form>\r\n");
@@ -2142,15 +2139,15 @@ void do_sys_state(int fd, string path, string options)
 
    if (gnss_comm_active)
    {
-      wprintf(fd, "<span padding=2></span>GNSS Valid: %s\r\n", gnss_valid_status ? "True" : "False");
+      wprintf(fd, "<span padding=2></span>GNSS Heading Valid: %s\r\n", gnss_heading_valid ? "True" : "False");
       br(fd, 1);
 
-      if (gnss_valid_status)
+      wprintf(fd, "<span padding=2></span>Position Valid: %s\r\n", gnss_position_valid ? "True" : "False");
+      br(fd, 1);
+
+      if (gnss_heading_valid)
       {
          wprintf(fd, "<span padding=2></span>Mag Valid: %s\r\n", gnss_mag_valid ? "True" : "False");
-         br(fd, 1);
-
-         wprintf(fd, "<span padding=2></span>Position Valid: %s\r\n", gnss_position_valid ? "True" : "False");
          br(fd, 1);
 
          wprintf(fd, "<span padding=2></span>Calibrating: %s\r\n", gnss_calibrating ? "True" : "False");

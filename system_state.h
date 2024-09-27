@@ -55,7 +55,7 @@ extern bool mav_comm_active;
 // GNSS group
 
 extern int gnss_status;
-#define gnss_valid_status ((gnss_status & GNSS_gnss_valid) != 0)
+#define gnss_heading_valid ((gnss_status & GNSS_gnss_heading_valid) != 0)
 #define gnss_mag_valid ((gnss_status & GNSS_mag_valid) != 0)
 #define gnss_position_valid ((gnss_status & GNSS_position_valid) != 0)
 #define gnss_calibrating ((gnss_status & GNSS_calibrating) != 0)

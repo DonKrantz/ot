@@ -119,10 +119,10 @@ double mavlink_last_received_mission_time = 0.0;
       }
 
       //TODO: JUST HERE FOR TESTING DELETE LATER
- /*     static int x = 0;
-      string heading = std::to_string(x);
-      x += 10;
-      s = "$USRTH," + heading + ",,,100,,,,96.9,-47.3,69.2,159.2,58,T,F,-1,CIMU,A,-2,-2,*01";*/
+      //static int x = 0;
+      //string heading = std::to_string(x);
+      //x += 10;
+      //s = "$USRTH," + heading + ",,,100,,,,96.9,-47.3,69.2,159.2,58,T,F,-1,CIMU,A,-2,-2,*01";
 
       log_data("%s,%s", ROVL_NAME, s.c_str());
       
@@ -467,7 +467,7 @@ double mavlink_last_received_mission_time = 0.0;
    std::thread mavlink_thread;
    void mavlink_thread_task()
    {
-      log_event("MAVlink threead starting");
+      log_event("MAVlink thread starting");
       prctl(PR_SET_NAME, "mavlinkZombie");
 
       bool got_global_origin = false;

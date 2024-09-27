@@ -31,7 +31,7 @@
 
 
 //Status bits for Gnss
-#define GNSS_gnss_valid (0b1<<8)
+#define GNSS_gnss_heading_valid (0b1<<8)
 #define GNSS_mag_valid (0b1<<7)
 #define GNSS_position_valid (0b1<<6)
 #define GNSS_calibrating (0b1<<5)

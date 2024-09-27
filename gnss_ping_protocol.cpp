@@ -139,9 +139,15 @@ namespace {
 	} PACKED_STRUCT;
 
 	// imu_gnss_compass_data
-// defined in system_state.h	typedef float Quaternion[4]; // todo: placeholder for Michael's definition
-	typedef char Time[8]; // todo: placeholder for Michael's definition
-	//typedef float vec3[3]; // todo: placeholder for Michael's definition
+
+	struct Time {
+		uint16_t year;
+		uint8_t month;
+		uint8_t day;
+		uint8_t hour;
+		uint8_t minute;
+		uint8_t second;
+	} PACKED_STRUCT;
 
 	struct IMU_DATA
 	{
@@ -391,11 +397,11 @@ namespace {
 			gnss_orientation.Heading()
 		);
 
-		printf("%s\n", temp);
+	//	printf("%s\n", temp);
 
 		log_data("%s", temp);
 
-		omnifusion.fuseGnss(gnss_orientation, gnss_lat, gnss_lon);
+		omnifusion.fuseGnss(gnss_orientation, gnss_lat, gnss_lon, gnss_position_valid);
 	}
 
 	//==========================================================================================
