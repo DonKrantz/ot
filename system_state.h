@@ -10,9 +10,6 @@
 #include <string>
 using std::string;
 
-// Fusion Model
-extern OmniFusion omnifusion;
-
 // ROVL group
 extern bool rovl_valid_rx;
 extern bool configured_correctly_rx;
@@ -76,4 +73,4 @@ extern float gnss_lon;
 
 extern bool gnss_comm_active;
 
-
+void reset_state();

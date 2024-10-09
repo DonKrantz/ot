@@ -18,6 +18,8 @@ void t650_reset_status();
 
 void parse_t650(string s, double timestamp);
 
+void parse_dvpdx(string s, struct dvpdx_message &dvpdx);
+
 struct dvpdx_message {
 	int time_uS;
 	int delta_time_uS;

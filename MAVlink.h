@@ -57,6 +57,9 @@ public:
 	// See what the autopilot thinks is the posiotn and velocities of the ROV.
 	bool get_mavlink_local_position_ned(string& x, string& y, string& z, string& vx, string& vy, string& vz);
 
+	// Get gps raw int
+	bool get_global_position_int(string& lat, string& lon);
+
 	// Constructor
 	// If IP is 0.0.0.0 the link is disabled although you can still call the message-sending
 	// methods. 

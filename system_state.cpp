@@ -2,8 +2,6 @@
 #include "rovl.h"
 #include "tracker650.h"
 
-OmniFusion omnifusion = OmniFusion();
-
 bool rovl_valid_rx = false;
 bool configured_correctly_rx = false;
 int rovl_transmit_id = -1;
@@ -49,3 +47,50 @@ float gnss_lat;
 float gnss_lon;
 bool gnss_comm_active = false;
 
+void reset_state() 
+{
+	rovl_valid_rx = false;
+	configured_correctly_rx = false;
+	rovl_transmit_id = -1;
+	rovl_firmware_rx = "";
+	firmware_tx = "";
+	rovl_magnetic_declination = 0.0f;
+	rovl_speed_of_sound = 0.0f;
+	rovl_using_CIMU = false;
+	rovl_polling_ids_human_readable = "";
+	rovl_polling_ids_mask = 0;
+	rovl_comm_active = false;
+
+	rovl_usrth = {};
+
+	t650_valid = false;
+	t650_dvnvm = {};
+	t650_dvpdx = {};
+	t650_comm_active = false;
+
+	mav_global_origin_valid = false;
+	mav_global_origin_lat = 0.0;
+	mav_global_origin_lon = 0.0;
+
+	mav_roll = 0.0;
+	mav_pitch = 0.0;
+	mav_yaw = 0.0;
+
+	mav_x = 0.0;
+	mav_y = 0.0;
+	mav_z = 0.0;
+	mav_vx = 0.0;
+	mav_vy = 0.0;
+	mav_vz = 0.0;
+	mav_comm_active = false;
+
+	gnss_status = 0;
+	gnss_orientation = {};
+	gnss_offset = {};
+	gnss_roll_rate = 0;
+	gnss_pitch_rate = 0;
+	gnss_yaw_rate = 0;
+	gnss_lat = 0;
+	gnss_lon = 0;
+	gnss_comm_active = false;
+}

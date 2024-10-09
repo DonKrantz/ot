@@ -1113,7 +1113,8 @@ string get_hostname_variant(string cmd, bool second = false)
    string rp = res;
 
    rp = replace(rp, '\n', ' ');
-   rp = substitute(rp, config.lookup("static-ip"), "");
+   if(second)
+       rp = substitute(rp, config.lookup("static-ip"), "");
    rp = substitute(rp, "255.255.255.1", "");
 
    return head_of(rp, " ", true);
@@ -1259,17 +1260,38 @@ bool send_message_to_udp_port(int sockfd, string request, string ip_address, str
    //	sudo_mode();
    if (sockfd < 0)
    {
-      // Creating socket file descriptor 
-      if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
-      {
-         log_severe("Opening socket! Error is: %s", strerror(errno));
-         return false;
-      }
-      closeport = true;
+       static int generalFd = -1;
 
-      int optval = 1;
-      setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(optval));
-      setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, &optval, sizeof(optval));
+       if (generalFd > -1)
+       {
+           sockfd = generalFd;
+       }
+       else
+       {
+           // Creating socket file descriptor 
+           if ((generalFd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+           {
+               log_severe("Opening socket! Error is: %s", strerror(errno));
+               return false;
+           }
+           //closeport = true;
+
+           int optval = 1;
+           setsockopt(generalFd, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(optval));
+           setsockopt(generalFd, SOL_SOCKET, SO_BROADCAST, &optval, sizeof(optval));
+
+
+           struct sockaddr_in myaddr;
+           memset(&myaddr, 0, sizeof(myaddr));
+
+           myaddr.sin_family = AF_INET; // IPv4 
+           uint32_t hal = ip_from_string(get_my_static_ip());
+           myaddr.sin_addr.s_addr = htonl(hal);
+           myaddr.sin_port = htons(0);
+
+           bind(generalFd, (sockaddr*)&myaddr, sizeof(myaddr));
+           sockfd = generalFd;
+       }
    }
 
    struct sockaddr_in cliaddr;
@@ -1280,6 +1302,7 @@ bool send_message_to_udp_port(int sockfd, string request, string ip_address, str
    cliaddr.sin_addr.s_addr = htonl(hal);
    cliaddr.sin_port = htons((uint16_t)stoi(port_address)); 
 
+
    socklen_t len;
    len = sizeof(cliaddr);  //len is value/result 
    
@@ -1287,7 +1310,7 @@ bool send_message_to_udp_port(int sockfd, string request, string ip_address, str
    if (r < 0)
    {
       log_warning("Error sending UDP message <%s>!\Error is: %s, user is %d, address is %s",
-         request, strerror(errno), geteuid(), address_image(&cliaddr).c_str());
+         request.c_str(), strerror(errno), geteuid(), address_image(&cliaddr).c_str());
       if (closeport)
          ztclose(sockfd);
       return false;

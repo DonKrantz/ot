@@ -118,12 +118,6 @@ double mavlink_last_received_mission_time = 0.0;
          s = ss;
       }
 
-      //TODO: JUST HERE FOR TESTING DELETE LATER
-      //static int x = 0;
-      //string heading = std::to_string(x);
-      //x += 10;
-      //s = "$USRTH," + heading + ",,,100,,,,96.9,-47.3,69.2,159.2,58,T,F,-1,CIMU,A,-2,-2,*01";
-
       log_data("%s,%s", ROVL_NAME, s.c_str());
       
       parse_rovlrx(s, timestamp);
@@ -198,6 +192,17 @@ double mavlink_last_received_mission_time = 0.0;
          mav_pitch = std::stod(head_of(message, ",", false));
          mav_yaw = std::stod(head_of(message, ",", false));
          // todo: do something with mavlink message
+
+         omnifusion.fuseMavlinkOrientation(mav_roll, mav_pitch, mav_yaw);
+      }
+      else if (contains("GLOBAL_POSITION_INT", message))
+      {
+          head_of(message, ",", false); // lop off front of message 
+          double lat = std::stod(head_of(message, ",", false)) / 10000000;
+          double lon = std::stod(head_of(message, ",", false)) / 10000000;
+
+
+          omnifusion.fuseBlueBoatLocation(lat, lon);
       }
 
    }
@@ -288,10 +293,10 @@ double mavlink_last_received_mission_time = 0.0;
    void check_watchdog(double timestamp)
    {
       check_comm(port_list[(int)PORTS::ROVL_RX].last_received_mission_time,
-         timestamp, 2.0, rovl_comm_active, rovl_connected, rovl_disconnected);
+         timestamp, 3.0, rovl_comm_active, rovl_connected, rovl_disconnected);
 
       check_comm(port_list[(int)PORTS::GNSS].last_received_mission_time,
-         timestamp, 2.0, gnss_comm_active, gnss_connected, gnss_disconnected);
+         timestamp, 3.0, gnss_comm_active, gnss_connected, gnss_disconnected);
 
       check_comm(port_list[(int)PORTS::TRACKER650].last_received_mission_time,
          timestamp, 2.0, t650_comm_active, t650_connected, t650_disconnected);
@@ -562,6 +567,16 @@ double mavlink_last_received_mission_time = 0.0;
             }
          }
 
+
+         // Just for getting Blue boat position
+         string lat, lon;
+         bool result_boat_pos = mavlink->get_global_position_int(lat, lon);
+         if (result_boat_pos && (lat != ""))
+         {
+             string message = "MAV GLOBAL_POSITION_INT," + lat + ',' + lon + "\r\n";
+             send_port_message(PORTS::INTERNAL_RX_SENDING, message);
+         }
+
          // check for position
          bool result_pos = mavlink->get_mavlink_local_position_ned(x, y, z, vx, vy, vz);
          if (result_pos && (x != ""))
@@ -579,6 +594,7 @@ double mavlink_last_received_mission_time = 0.0;
       }
    }
 
+   //TODO: Instantiate Omnifusion some time before this is called
    // **************************************************************************************
    // Sets up a linux poll() to look for all the possible incoming messages.
    void message_loop()
@@ -728,6 +744,8 @@ double mavlink_last_received_mission_time = 0.0;
 
 
 } // namespace
+
+//TODO: Disconnect and reconnect for sim. Reset system state before and after
 
 // **************************************************************************************
 // Disconnects a port/channel from the message receive loop. IMPORTANT: does not change

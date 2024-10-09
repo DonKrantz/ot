@@ -1093,7 +1093,8 @@ void do_discover(int fd, string path, string options)
             }
             wprintf(fd, "</p>");
          }
-         }
+      }
+      fclose(f);
    }
 
    wprintf(fd, "<p><b>No more responders<//b></p>");
@@ -1587,12 +1588,10 @@ void do_replaylog(int fd, string path, string options) {
     string fn = extract("fn", options, "&");
 
     string logPath = config.lookup("webhome") + "/savedLogs/" + fn;
-    omnifusion.setSim(true);
 
     LogSimulator logSim;
     logSim.runSimulation(logPath);
 
-    omnifusion.setSim(false);
 }
 
 

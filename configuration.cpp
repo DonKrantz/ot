@@ -24,6 +24,7 @@ configuration::configuration(string pathname)
 	m_config["logger-maxsize"] = "100";
 	m_config["static-ip"] = "192.168.2.19";
 	m_config["http-port"] = "80";
+	m_config["rovl-yaw-offset"] = "-90";
 
 	std::fstream f;
 	f.std::fstream::open(pathname, std::ios_base::in);

@@ -11,6 +11,11 @@ public:
 
 private:
 
-	void do_rovl(float time, string data);
-	void do_gnss(float time, string data);
+	void do_rovl(string data);
+	void do_gnss(string data);
+	void do_mav(string data);
+	void do_tracker(string data);
+
+	void disconnect_devices();
+	void reconnect_devices();
 };

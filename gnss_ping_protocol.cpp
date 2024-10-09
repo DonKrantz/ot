@@ -4,6 +4,7 @@
 #include "system_state.h"
 #include "serializer_main.h"
 #include "vecs.h"
+#include "OmniFusion.h"
 
 
 

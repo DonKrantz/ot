@@ -174,6 +174,22 @@ bool MAVlink::get_mavlink_local_position_ned(string& x, string& y, string& z, st
 	return true;
 }
 
+bool MAVlink::get_global_position_int(string &lat, string &lon)
+{
+	char* jstring = get_json("GLOBAL_POSITION_INT");
+
+	if (jstring == NULL)
+		return false;
+
+	string js = jstring;
+	if (js == "None")
+		return false;
+
+	lat = value_of("lat", js);
+	lon = value_of("lon", js);
+	return true;
+}
+
 //==================================================================================
 namespace {
 	char curl_error_string[CURL_ERROR_SIZE + 1]; 
@@ -228,7 +244,8 @@ char* MAVlink::get_json(string messagetype)
 
 	struct jdata jd = { 0 };
 
-	string mavURL = "http://" + m_MAVlink_address + "/mavlink/vehicles/1/components/1/messages/" + messagetype;
+	// TODO: System id is 8 for blueBoat and 1 for ROV. Make system id configurable in webserver
+	string mavURL = "http://" + m_MAVlink_address + "/mavlink/vehicles/8/components/1/messages/" + messagetype;
 
 	curl_easy_setopt(m_ghandle, CURLOPT_URL, mavURL.c_str());
 	curl_easy_setopt(m_ghandle, CURLOPT_PORT, m_MAVlink_port);
