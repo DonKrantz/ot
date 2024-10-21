@@ -31,7 +31,7 @@ namespace {
 
 //==================================================================================
 // Constructor
-MAVlink::MAVlink(string MAVlink_address, int MAVlink_port, int vehicle_id, 
+MAVlink::MAVlink(string MAVlink_address, int MAVlink_port, int system_id, int vehicle_id,
 	float holdoff_seconds)
 {
 	if (m_MAVlink_address.substr(0, 7) == "0.0.0.0")
@@ -44,6 +44,7 @@ MAVlink::MAVlink(string MAVlink_address, int MAVlink_port, int vehicle_id,
 
 	m_MAVlink_address = MAVlink_address;
 	m_MAVlink_port = MAVlink_port;
+	m_system_id = system_id;
 	m_vehicle_id = vehicle_id;
 	m_holdoff_seconds = holdoff_seconds;
 	m_handle = curl_easy_init();
@@ -190,6 +191,25 @@ bool MAVlink::get_global_position_int(string &lat, string &lon)
 	return true;
 }
 
+bool MAVlink::get_manual_control(string& cmd_x, string& cmd_y, string& cmd_z, string& cmd_r)
+{
+	char* jstring = get_json("MANUAL_CONTROL", "255", "190");
+
+	if (jstring == NULL)
+		return false;
+
+	string js = jstring;
+	if (js == "None" || js == "None\177")
+		return false;
+
+	cmd_x = value_of("x", js);
+	cmd_y = value_of("y", js);
+	cmd_z = value_of("z", js);
+	cmd_r = value_of("r", js);
+
+	return true;
+}
+
 //==================================================================================
 namespace {
 	char curl_error_string[CURL_ERROR_SIZE + 1]; 
@@ -235,7 +255,7 @@ namespace {
 
 //==================================================================================
 // Core function to ask for a JSON reply from the MAVlink REST server
-char* MAVlink::get_json(string messagetype)
+char* MAVlink::get_json(string messagetype, string vehicle_id, string component_id)
 {
 	if (m_ghandle == NULL)
 		return NULL;
@@ -244,8 +264,11 @@ char* MAVlink::get_json(string messagetype)
 
 	struct jdata jd = { 0 };
 
-	// TODO: System id is 8 for blueBoat and 1 for ROV. Make system id configurable in webserver
-	string mavURL = "http://" + m_MAVlink_address + "/mavlink/vehicles/8/components/1/messages/" + messagetype;
+	if (vehicle_id == "")
+		vehicle_id = std::to_string(m_vehicle_id);
+
+	// Vehicle id is 8 for blueBoat and 1 for ROV
+	string mavURL = "http://" + m_MAVlink_address + "/mavlink/vehicles/" + vehicle_id + "/components/" + component_id + "/messages/" + messagetype;
 
 	curl_easy_setopt(m_ghandle, CURLOPT_URL, mavURL.c_str());
 	curl_easy_setopt(m_ghandle, CURLOPT_PORT, m_MAVlink_port);
@@ -322,7 +345,7 @@ bool MAVlink::send_mavlink_delta_position_data(float dx, float dy, float dz,
 		"\"angle_delta\":[0,0,0],"
 		"\"position_delta\":[%f,%f,%f],"
 		"\"confidence\":%d}}",
-		m_vehicle_id,
+		m_system_id,
 		sequence++,
 		(GetTick()),
 		(int)(delta_t * 1000000.0f),
@@ -406,7 +429,7 @@ bool MAVlink::send_mavlink_distance_sensor(float d, int confidence, Quaternion q
 		"\"type\": \"DISTANCE_SENSOR\","
 		"\"vertical_fov\": 0.0"
 		"}}",
-		m_vehicle_id,
+		m_system_id,
 		sequence++,
 		d * 100.0f,					// current distance
 		orthogonize(quat),
@@ -451,7 +474,7 @@ bool MAVlink::send_mavlink_heartbeat()
 		"},"
 		"\"type\": \"HEARTBEAT\""
 		"}}",
-		m_vehicle_id,
+		m_system_id,
 		sequence++);
 
 	return send_json(JSON_payload);
@@ -478,7 +501,7 @@ bool MAVlink::send_mavlink_position(double latitude, double longitude)
 		"\"altitude\":0,"
 		"\"time_usec\":%d"
 		"}}",
-		m_vehicle_id,
+		m_system_id,
 		sequence++,
 		latitude * 1.0e7,
 		longitude * 1.0e7,
@@ -538,7 +561,7 @@ bool MAVlink::send_mavlink_position_update(double origin_lat, double origin_lon,
 		"],"
 		"\"reset_counter\":%d}"  // reset counter
 		"}",
-		m_vehicle_id,
+		m_system_id,
 		sequence++,
 		(int)(GetTick()),// time msec
 		x,
@@ -591,7 +614,7 @@ bool MAVlink::send_mavlink_scaled_pressure(double absolute_pressure,
 		"\"time_boot_ms\":%d,"
 		"\"type\":\"%s\""
 		"}}",
-		m_vehicle_id,
+		m_system_id,
 		sequence++,
 		absolute_pressure * 1000.0,
 		(temperature_C != 0) ? temperature_C * 100.0 : 1,

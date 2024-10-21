@@ -61,7 +61,8 @@ void LogSimulator::runSimulation(string logPath) {
 			}
 
 			// Wait till time to send message through fusion. Not perfect but close enough
-			while (elapsed(sim_start_time) < time)
+			//TODO: Divided by 4 to run faster
+			while (elapsed(sim_start_time) < time/6)
 			{
 				delay(10);
 			}

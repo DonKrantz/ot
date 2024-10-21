@@ -201,10 +201,17 @@ double mavlink_last_received_mission_time = 0.0;
           double lat = std::stod(head_of(message, ",", false)) / 10000000;
           double lon = std::stod(head_of(message, ",", false)) / 10000000;
 
-
           omnifusion.fuseBlueBoatLocation(lat, lon);
       }
 
+      else if (contains("MANUAL_CONTROL", message))
+      {
+          head_of(message, ",", false); // lop off front of message 
+          int16_t x = std::stoi(head_of(message, ",", false));
+          int16_t y = std::stoi(head_of(message, ",", false));
+          int16_t z = std::stoi(head_of(message, ",", false));
+          int16_t r = std::stoi(head_of(message, ",", false));
+      }
    }
 
    // **************************************************************************************
@@ -569,11 +576,20 @@ double mavlink_last_received_mission_time = 0.0;
 
 
          // Just for getting Blue boat position
-         string lat, lon;
+         /*string lat, lon;
          bool result_boat_pos = mavlink->get_global_position_int(lat, lon);
          if (result_boat_pos && (lat != ""))
          {
              string message = "MAV GLOBAL_POSITION_INT," + lat + ',' + lon + "\r\n";
+             send_port_message(PORTS::INTERNAL_RX_SENDING, message);
+         }*/
+
+         // Check for manual control message
+         string cmd_x, cmd_y, cmd_z, cmd_r;
+         bool result_manual = mavlink->get_manual_control(cmd_x, cmd_y, cmd_z, cmd_r);
+         if (result_manual && x != "")
+         {
+             string message = "MAV MANUAL_CONTROL," + cmd_x + "," + cmd_y + "," + cmd_z + "," + cmd_r + "\r\n";
              send_port_message(PORTS::INTERNAL_RX_SENDING, message);
          }
 
@@ -734,8 +750,9 @@ double mavlink_last_received_mission_time = 0.0;
       //start MAVlink REST interface
       string mavlink_port = config.lookup("mavlink-ip");
       string mavlink_ip = head_of(mavlink_port, ":", false);
-      string vehicle_id = config.lookup("mavlink-sysid");
-      mavlink = new MAVlink(mavlink_ip, std::stoi(mavlink_port), std::stoi(vehicle_id), 10.0f);
+      string system_id = config.lookup("mavlink-sysid");
+      string vehicle_id = config.lookup("mavlink-vehid");
+      mavlink = new MAVlink(mavlink_ip, std::stoi(mavlink_port), std::stoi(system_id), std::stoi(vehicle_id), 10.0f);
 
       mavlink_thread = std::thread(mavlink_thread_task);
 

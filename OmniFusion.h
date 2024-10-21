@@ -1,6 +1,6 @@
 #pragma once
 #include "quaternion.h"
-
+#include "utilities.h"
 
 
 // World frame is ENU
@@ -8,8 +8,6 @@
 // Mavlink frame is NED
 // DVL is NED
 // 
-
-
 
 /*
 Notes:
@@ -45,7 +43,13 @@ class OmniFusion {
 	bool firstPos = true;
 
 	// Time constant for ROVL updating
-	float		RC = 10;
+	float		RC = 1000;
+
+	// When the last mav_orientation message came in to timeout using the DVL
+	TIMING		last_mav_orientation_time;
+
+	// Stop using DVL if we haven't gotten orientation in the last 2 seconds
+	double		dvl_orientation_timeout = 2;
 public:
 	OmniFusion();
 

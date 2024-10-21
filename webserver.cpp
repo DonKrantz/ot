@@ -1525,6 +1525,12 @@ void do_mavlink(int fd, string path, string options)
    wprintf(fd, "<input type='number' id='mavlink-sysid' name='mavlink-sysid' value='%s' min='0' max='255' style='text-align:center; width:5em' required title='MAVLink System ID: 0..255, try 254 if unsure'>\r\n",
       config.lookup("mavlink-sysid").c_str());
 
+   br(fd, 1);
+
+   wprintf(fd, "<label for=\"mavlink-vehid\">MAVLink vehicle ID: </label>\r\n");
+   wprintf(fd, "<input type='number' id='mavlink-vehid' name='mavlink-vehid' value='%s' min='0' max='255' style='text-align:center; width:5em' required title='MAVLink Vehicle ID: 0..255, try 1 if unsure'>\r\n",
+       config.lookup("mavlink-vehid").c_str());
+
    br(fd, 3);
 
    commit_reset(fd);

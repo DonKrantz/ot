@@ -398,7 +398,7 @@ namespace {
 			gnss_orientation.Heading()
 		);
 
-	//	printf("%s\n", temp);
+		//printf("%s\n", temp);
 
 		log_data("%s", temp);
 

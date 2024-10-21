@@ -19,7 +19,8 @@ class MAVlink {
 private:
 	string				m_MAVlink_address = "";
 	int					m_MAVlink_port = 6040;
-	int					m_vehicle_id = 254;
+	int					m_system_id = 254;
+	int					m_vehicle_id = 1;
 	float					m_holdoff_seconds;	// how much time to give the MAVlink guy to boot up
 	TIMING				m_start_mavlink; 
 	CURL*					m_handle;   // for POST
@@ -60,17 +61,20 @@ public:
 	// Get gps raw int
 	bool get_global_position_int(string& lat, string& lon);
 
+	// Get manual control message
+	bool get_manual_control(string& cmd_x, string& cmd_y, string& cmd_z, string& cmd_r);
+
 	// Constructor
 	// If IP is 0.0.0.0 the link is disabled although you can still call the message-sending
 	// methods. 
-	MAVlink(string MAVlink_address, int MAVlink_port, int vehicle_id, 
+	MAVlink(string MAVlink_address, int MAVlink_port, int system_id, int vehicle_id,
 		float holdoff_seconds);	// delay to let the MAVlink host get booted up
 	~MAVlink();
 
 private:
 	const bool check_connect() const;
 	bool send_json(char* json);
-	char* get_json(string messagetype);
+	char* get_json(string messagetype, string vehicle_id = "", string component_id = "1");
 	const void wait_semaphore() const;
 	const void give_semaphore() const;
 };

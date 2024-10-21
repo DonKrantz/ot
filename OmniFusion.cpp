@@ -71,7 +71,7 @@ void OmniFusion::fuseGnss(Quaternion gnss_orientation, float gnss_latitude, floa
 	{
 		m_omni_lat = gnss_latitude;
 		m_omni_lon = gnss_longitude;
-
+			
 		if (firstPos)
 		{
 			m_rov_lat_meters = lat_meters(m_omni_lat);
@@ -159,6 +159,7 @@ void OmniFusion::lowPassUpdateRovPos(double lon_meters, double lat_meters, doubl
 // Yaw is heading because this is NED
 void OmniFusion::fuseMavlinkOrientation(double roll, double pitch, double yaw)
 {
+	last_mav_orientation_time = Clock().now();
 	//TODO: Check mavlink frame
 	m_rov_orientation = Quaternion(roll, pitch, yaw, ANGLE_TYPE::RADIANS);
 	//m_rov_orientation = Quaternion(pitch, roll, fPI/2 - yaw, ANGLE_TYPE::RADIANS);
@@ -173,10 +174,15 @@ void OmniFusion::fuseBlueBoatLocation(double lat, double lon)
 //DVL and mavlink frames are NED
 void OmniFusion::fuseDvl(bool valid, float pos_delta_x, float pos_delta_y, float pos_delta_z)
 {
-	if (!valid) return;
+	//TODO: DELETE
+	/*return;*/
+	if (!valid || elapsed(last_mav_orientation_time) > dvl_orientation_timeout) return;
 
 	vec3 pos_delta = vec3(pos_delta_x, pos_delta_y, pos_delta_z);
-
+	//if (pos_delta_x != 0)
+	//{
+	//	printf("HERE\n");
+	//}
 	// Rotate position delta to NED world frame (because Rov orientation is in NED)
 	// TODO: Check this rotation is correct
 	pos_delta = m_rov_orientation.Rotate(pos_delta);
@@ -191,8 +197,8 @@ void OmniFusion::fuseDvl(bool valid, float pos_delta_x, float pos_delta_y, float
 
 void OmniFusion::sendDatumToMap()
 {
-	sendMapUpdate("TOPSIDE", m_omni_rotation_rate > 0.3 ? "RED" : "GREEN", m_omni_orientation.Heading(), m_omni_lat, m_omni_lon);
-
+	//sendMapUpdate("TOPSIDE", m_omni_rotation_rate > 0.3 ? "RED" : "GREEN", m_omni_orientation.Heading(), m_omni_lat, m_omni_lon);
+	sendMapUpdate("TOPSIDE", "GREEN", m_omni_orientation.Heading(), m_omni_lat, m_omni_lon);
 	float rov_heading = m_rov_orientation.Yaw();
 	if (rov_heading < 0)
 	{
@@ -265,7 +271,7 @@ void OmniFusion::sendRovlRawToMap(float apparent_bearing_math, float apparent_el
 	double rov_lat = lat_meters(m_omni_lat) + rov_location.y;
 	double rov_depth = rov_location.z;
 
-	sendMapUpdate("SEC", "BROWN", 0, meters_to_lat(rov_lat), meters_to_lon(m_omni_lat, rov_lon));
+	sendMapUpdate("SEC", "RED", 0, meters_to_lat(rov_lat), meters_to_lon(m_omni_lat, rov_lon));
 }
 
 
