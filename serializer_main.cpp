@@ -36,6 +36,7 @@
 #include "system_state.h"
 #include "LogSimulator.h"
 
+#include "OmniUkf.h"
 
 namespace {
 
@@ -497,7 +498,6 @@ double mavlink_last_received_mission_time = 0.0;
 
       while (true)
       {
-
          // First see if we need to send stuff out, also sets the period of the loop.
          while (true)
          {
@@ -617,10 +617,16 @@ double mavlink_last_received_mission_time = 0.0;
    {
       // set up the polling list
       struct pollfd poll_list[COUNT(port_list)] = { 0 };
-
+      
+      //TODO: DELETE LATER
+      //setup();
       // go do the poll
       while (true)
       {
+          //TODO: DELETE LATER
+          
+          //loop();
+
          for (int i = 0; i < (int)(COUNT(port_list)); i++)
          {
             poll_list[i].fd = port_list[i].fd;

@@ -29,8 +29,10 @@ class OmniFusion {
 
 	// Last orientation and location of the Omnitrack 
 	Quaternion	m_omni_orientation;
-	double		m_omni_lat;
-	double		m_omni_lon;
+	/*double		m_omni_lat = 44.969429;
+	double		m_omni_lon = -93.5173035;*/
+	double		m_omni_lat = 0;
+	double		m_omni_lon = 0;
 	float		m_omni_rr;
 	float		m_omni_pr;
 	float		m_omni_yr;
@@ -43,7 +45,7 @@ class OmniFusion {
 	bool firstPos = true;
 
 	// Time constant for ROVL updating
-	float		RC = 1000;
+	float		RC = 10;
 
 	// When the last mav_orientation message came in to timeout using the DVL
 	TIMING		last_mav_orientation_time;
@@ -72,6 +74,9 @@ public:
 
 	//Send raw ROVL data to map to compare to fusion
 	void sendRovlRawToMap(float apparent_bearing_math, float apparent_elevation, float slant_range);
+
+	// Send UKF data to map
+	void sendUKF(float pos_x, float pos_y, float pos_z);
 
 	//Used to reset ROV location to GNSS receiver
 	void setFirstPos() { firstPos = true; }

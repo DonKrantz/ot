@@ -180,7 +180,7 @@ namespace
 			if (reply != "")
 			{
 				sendto(sockfd, reply.c_str(), reply.length(), MSG_CONFIRM, (const struct sockaddr*)&cliaddr, len);
-				log_event("Responded host %s, request %s", address_image(&cliaddr).c_str(), buffer);
+				//log_event("Responded host %s, request %s", address_image(&cliaddr).c_str(), buffer);
 			}
 
 			string ip_change = set_ip_for_mac_address(buffer);

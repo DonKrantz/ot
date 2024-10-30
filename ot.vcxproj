@@ -46,6 +46,12 @@
   <ImportGroup Label="Shared" />
   <ImportGroup Label="PropertySheets" />
   <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
+    <IncludePath>
+    </IncludePath>
+    <SourcePath>
+    </SourcePath>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
     <Link>
       <LibraryDependencies>wiringPi</LibraryDependencies>
@@ -73,8 +79,12 @@
     <ClCompile Include="GPIO.cpp" />
     <ClCompile Include="logger.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="matrix.cpp" />
     <ClCompile Include="MAVlink.cpp" />
     <ClCompile Include="OmniFusion.cpp" />
+    <ClCompile Include="OmniUkf.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">false</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="quaternion.cpp" />
     <ClCompile Include="serializer_main.cpp" />
     <ClCompile Include="queue.cpp" />
@@ -84,6 +94,7 @@
     <ClCompile Include="system_state.cpp" />
     <ClCompile Include="tiny_json.cpp" />
     <ClCompile Include="tracker650.cpp" />
+    <ClCompile Include="ukf.cpp" />
     <ClCompile Include="utilities.cpp" />
     <ClCompile Include="vecs.cpp" />
     <ClCompile Include="webserver.cpp" />
@@ -95,9 +106,12 @@
     <ClInclude Include="firmware_update.h" />
     <ClInclude Include="gnss_ping_protocol.h" />
     <ClInclude Include="GPIO.h" />
+    <ClInclude Include="konfig.h" />
     <ClInclude Include="logger.h" />
+    <ClInclude Include="matrix.h" />
     <ClInclude Include="MAVlink.h" />
     <ClInclude Include="OmniFusion.h" />
+    <ClInclude Include="OmniUkf.h" />
     <ClInclude Include="packet_defs.h" />
     <ClInclude Include="quaternion.h" />
     <ClInclude Include="serializer_main.h" />
@@ -108,9 +122,15 @@
     <ClInclude Include="system_state.h" />
     <ClInclude Include="tiny_json.h" />
     <ClInclude Include="tracker650.h" />
+    <ClInclude Include="ukf.h" />
     <ClInclude Include="utilities.h" />
     <ClInclude Include="vecs.h" />
     <ClInclude Include="webserver.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\..\Downloads\Embedded_UKF_Library-master\Embedded_UKF_Library-master\ukf_engl\ukf_engl.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">true</ExcludedFromBuild>
+    </None>
   </ItemGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
     <Link>

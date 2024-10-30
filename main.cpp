@@ -45,6 +45,9 @@
 
 #include <math.h>
 
+
+#include "OmniUkf.h"
+
 using namespace std;
 
 using std::string;
@@ -59,6 +62,7 @@ namespace {
    //==========================================================================================
    bool master(int argc, char* argv[])
    {
+
       log_initialize();
 
       //   ports_thread = std::thread(ports_main);

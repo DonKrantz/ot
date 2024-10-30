@@ -64,9 +64,12 @@ OmniFusion::OmniFusion()
 
 void OmniFusion::fuseGnss(Quaternion gnss_orientation, float gnss_latitude, float gnss_longitude, bool positionValid, float deg_per_sec)
 {
+	//TODO: DELETE LATER
+#if true
 	m_omni_orientation = gnss_orientation;
 	m_omni_rotation_rate = deg_per_sec;
 
+	
 	if (positionValid)
 	{
 		m_omni_lat = gnss_latitude;
@@ -84,6 +87,7 @@ void OmniFusion::fuseGnss(Quaternion gnss_orientation, float gnss_latitude, floa
 			printf("BAD DATA\n");
 		}
 	}
+#endif
 	sendDatumToMap();
 }
 
@@ -146,6 +150,32 @@ void OmniFusion::fuseRovl(float apparent_bearing_math, float apparent_elevation,
 }
 
 
+void OmniFusion::sendUKF(float pos_x, float pos_y, float pos_z)
+{
+	//vec3 apparent_location(pos_x, pos_y, pos_z);
+
+	//// ROV in GNSS / Omnitrack frame
+	//vec3 rov_in_gnss_frame = m_rovl_yaw_offset.Rotate(apparent_location);
+
+	//// offset of the ROV in the world frame
+	//// TODO: Check that this rotation is correct and not inverted
+	//vec3 rov_location = m_omni_orientation.Rotate(rov_in_gnss_frame);
+
+
+	// World space is ENU (x pointing east)
+	/*m_rov_lat_meters = lat_meters(m_omni_lat) + rov_location.y;
+	m_rov_lon_meters = lon_meters(m_omni_lat, m_omni_lon) + rov_location.x;
+
+	m_rov_depth = rov_location.z;*/
+
+	double rov_lon = lon_meters(m_omni_lat, m_omni_lon) + pos_x;
+	double rov_lat = lat_meters(m_omni_lat) + pos_y;
+	double rov_depth = pos_z;
+
+	sendMapUpdate("UKF", "YELLOW", 0, meters_to_lat(rov_lat), meters_to_lon(m_omni_lat, rov_lon));
+}
+
+
 void OmniFusion::lowPassUpdateRovPos(double lon_meters, double lat_meters, double depth, float interval_sec)
 {
 	//TODO: Modulate time constant by distance to ROVL pos and by first few data points 
@@ -174,6 +204,7 @@ void OmniFusion::fuseBlueBoatLocation(double lat, double lon)
 //DVL and mavlink frames are NED
 void OmniFusion::fuseDvl(bool valid, float pos_delta_x, float pos_delta_y, float pos_delta_z)
 {
+#if false
 	//TODO: DELETE
 	/*return;*/
 	if (!valid || elapsed(last_mav_orientation_time) > dvl_orientation_timeout) return;
@@ -192,6 +223,7 @@ void OmniFusion::fuseDvl(bool valid, float pos_delta_x, float pos_delta_y, float
 	m_rov_lon_meters += pos_delta.y;
 	m_rov_depth = -pos_delta.z;
 	sendDatumToMap();
+#endif
 }
 
 
@@ -204,7 +236,7 @@ void OmniFusion::sendDatumToMap()
 	{
 		rov_heading += 360;
 	}
-	sendMapUpdate("ROV", "YELLOW", rov_heading, meters_to_lat(m_rov_lat_meters), meters_to_lon(m_omni_lat, m_rov_lon_meters));
+	//sendMapUpdate("ROV", "YELLOW", rov_heading, meters_to_lat(m_rov_lat_meters), meters_to_lon(m_omni_lat, m_rov_lon_meters));
 }
 
 
@@ -273,6 +305,7 @@ void OmniFusion::sendRovlRawToMap(float apparent_bearing_math, float apparent_el
 
 	sendMapUpdate("SEC", "RED", 0, meters_to_lat(rov_lat), meters_to_lon(m_omni_lat, rov_lon));
 }
+
 
 
 // If near poles or date line?
