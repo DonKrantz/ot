@@ -475,6 +475,16 @@ double mavlink_last_received_mission_time = 0.0;
       }
    }
 
+   std::thread ukf;
+   void ukf_thread_task()
+   {
+       while (1)
+       {
+           loop();
+           delay(10);
+       }
+   }
+
    // **************************************************************************************
    // Loops through MAVlink requests to periodically refresh the MAVlink ROV data. 
    std::thread mavlink_thread;
@@ -761,6 +771,9 @@ double mavlink_last_received_mission_time = 0.0;
       mavlink = new MAVlink(mavlink_ip, std::stoi(mavlink_port), std::stoi(system_id), std::stoi(vehicle_id), 10.0f);
 
       mavlink_thread = std::thread(mavlink_thread_task);
+
+      setup();
+      ukf = std::thread(ukf_thread_task);
 
       message_loop();
    }

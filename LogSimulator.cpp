@@ -15,6 +15,7 @@
 using namespace std;
 
 void LogSimulator::disconnect_devices() {
+	//TODO: Still getting attitude from Mavlink when it should be disconnected. Might need to disconnect MAVLINK_SENDING
 	port_disconnect(PORTS::ROVL_RX);
 	port_disconnect(PORTS::GNSS);
 	port_disconnect(PORTS::MAVLINK_LISTENING);
@@ -33,7 +34,7 @@ void LogSimulator::runSimulation(string logPath) {
 	string line;
 	if (logfile.is_open()) 
 	{
-		setup();
+		run();
 		log_event("Beginning Log Simulation of %s. Disconnecting devices and resetting state...\n", logPath.c_str());
 		disconnect_devices();
 		reset_state();
@@ -65,7 +66,7 @@ void LogSimulator::runSimulation(string logPath) {
 
 			// Wait till time to send message through fusion. Not perfect but close enough
 			//TODO: Divided by 4 to run faster
-			while (elapsed(sim_start_time) < time/5)
+			while (elapsed(sim_start_time) < time)
 			{
 				delay(10);
 			}
@@ -101,6 +102,7 @@ void LogSimulator::runSimulation(string logPath) {
 	log_event("Simulation over. Reconnecting devices and resetting state...\n", logPath);
 	reconnect_devices();
 	reset_state();
+	stop();
 }
 
 void LogSimulator::do_gnss(string data) {
@@ -132,8 +134,6 @@ void LogSimulator::do_rovl(string data) {
 	}
 
 	parse_usrth(data);
-
-	loop();
 	
 	//omnifusion.fuseRovl(rovl_usrth.apparent_bearing_math, rovl_usrth.apparent_elevation, rovl_usrth.slant_range);
 

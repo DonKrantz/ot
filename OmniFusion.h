@@ -76,7 +76,7 @@ public:
 	void sendRovlRawToMap(float apparent_bearing_math, float apparent_elevation, float slant_range);
 
 	// Send UKF data to map
-	void sendUKF(float pos_x, float pos_y, float pos_z);
+	void sendUKF(float pos_x, float pos_y, float pos_z, Quaternion& orientation);
 
 	//Used to reset ROV location to GNSS receiver
 	void setFirstPos() { firstPos = true; }

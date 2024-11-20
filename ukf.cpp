@@ -91,11 +91,44 @@
  * See https://github.com/pronenewbits for more!
  **********************************************************************************************************************/
 #include "ukf.h"
+namespace {
+    void adjustBearingError(Matrix& Err)
+    {
+        if (Err[1][0] > 180)
+        {
+            Err[1][0] = Err[1][0] - 360;
+        }
+        else if (Err[1][0] < -180)
+        {
+            Err[1][0] = 360 + Err[1][0];
+        }
 
+        if (Err[2][0] < -180)
+        {
+            Err[2][0] = 360 + Err[2][0];
+        }
+        else if (Err[2][0] > 180)
+        {
+            Err[2][0] = Err[2][0] - 360;
+        }
+    }
 
-UKF::UKF(const Matrix& XInit, const Matrix& PInit, const Matrix& Rv, const Matrix& Rn,
+    Matrix calculateCrossCovariance(Matrix DX, Matrix& DY, Matrix& Wc)
+    {
+        for (int16_t _i = 0; _i < DX.i16getRow(); _i++) {
+            for (int16_t _j = 0; _j < DX.i16getCol(); _j++) {
+                DX[_i][_j] *= Wc[0][_j];
+            }
+        }
+        return DX * (DY.Transpose());
+    }
+}
+
+UKF::UKF(const Matrix& XInit, const Matrix& PInit, const Matrix& Rv, const Matrix& Rn_sensor1, const Matrix& Rn_sensor2, const Matrix& Rn_combined,
     bool (*bNonlinearUpdateX)(Matrix&, const Matrix&, const Matrix&),
-    bool (*bNonlinearUpdateY)(Matrix&, const Matrix&, const Matrix&))
+    bool (*bNonlinearUpdateY_sensor1)(Matrix&, const Matrix&, const Matrix&),
+    bool (*bNonlinearUpdateY_sensor2)(Matrix&, const Matrix&, const Matrix&),
+    bool (*bNonlinearUpdateY_combined)(Matrix&, const Matrix&, const Matrix&))
 {
     /* Initialization:
      *  P(k=0|k=0) = Identity matrix * covariant(P(k=0)), typically initialized with some big number.
@@ -107,10 +140,13 @@ UKF::UKF(const Matrix& XInit, const Matrix& PInit, const Matrix& Rv, const Matri
     this->X_Est = XInit;
     this->P = PInit;
     this->Rv = Rv;
-    this->Rn = Rn;
+    this->Rn_sensor1 = Rn_sensor1;
+    this->Rn_sensor2 = Rn_sensor2;
+    this->Rn_combined = Rn_combined;
     this->bNonlinearUpdateX = bNonlinearUpdateX;
-    this->bNonlinearUpdateY = bNonlinearUpdateY;
-
+    this->bNonlinearUpdateY_sensor1 = bNonlinearUpdateY_sensor1;
+    this->bNonlinearUpdateY_sensor2 = bNonlinearUpdateY_sensor2;
+    this->bNonlinearUpdateY_combined = bNonlinearUpdateY_combined;
 
     /* Van der. Merwe, .. (2004). Sigma-Point Kalman Filters for Probabilistic Inference in Dynamic State-Space Models
      * (Ph.D. thesis). Oregon Health & Science University. Page 6:
@@ -141,90 +177,213 @@ UKF::UKF(const Matrix& XInit, const Matrix& PInit, const Matrix& Rv, const Matri
 }
 
 
-void UKF::vReset(const Matrix& XInit, const Matrix& PInit, const Matrix& Rv, const Matrix& Rn)
+void UKF::vReset(const Matrix& XInit, const Matrix& PInit, const Matrix& Rv, const Matrix& Rn_sensor1, const Matrix& Rn_sensor2)
 {
     this->X_Est = XInit;
     this->P = PInit;
     this->Rv = Rv;
-    this->Rn = Rn;
+    this->Rn_sensor1 = Rn_sensor1;
+    this->Rn_sensor2 = Rn_sensor2;
 }
 
-
-bool UKF::bUpdate(const Matrix& Y, const Matrix& U)
+bool UKF::bUpdate(const Matrix& Y, const Matrix& U, bool sensor1Available, bool sensor2Available)
 {
-    /* Run once every sampling time */
-
-    /* XSigma(k-1) = [x(k-1) Xs(k-1)+GPsq Xs(k-1)-GPsq]                     ...{UKF_4}  */
-    if (!bCalculateSigmaPoint()) {
+    // Prediction Step: Unscented Transform for the process model
+    if (!bCalculateSigmaPoint() || !bUnscentedTransform(X_Est, X_Sigma, P, DX, bNonlinearUpdateX, X_Sigma, U, Rv)) {
         return false;
     }
 
+    if (sensor1Available || sensor2Available)
+    {
+        Matrix Y_est_local(SS_Z_LEN, 1);
+        Matrix Y_sigma_local{ SS_Z_LEN, (2 * SS_X_LEN + 1) };
+        Matrix Py_local{ SS_Z_LEN, SS_Z_LEN };
+        Matrix DY_local{ SS_Z_LEN, (2 * SS_X_LEN + 1) };
+        Matrix Rn_local(SS_Z_LEN, SS_Z_LEN);
+        //Matrix Pxy_local{ SS_X_LEN, SS_Z_LEN };
+        //Matrix Err_local{ SS_Z_LEN, 1 };
+        //Matrix Gain_local{ SS_X_LEN, SS_Z_LEN };
+        bool (*bNonlinearUpdateY_local)(Matrix & xOut, const Matrix & xInp, const Matrix & U);
 
-    /* Unscented Transform XSigma [f,XSigma,u,Rv] -> [x,XSigma,P,DX]:       ...{UKF_5a} - {UKF_8a} */
-    if (!bUnscentedTransform(X_Est, X_Sigma, P, DX, bNonlinearUpdateX, X_Sigma, U, Rv)) {
-        return false;
-    }
+        //Sizes need to change
+        if (sensor1Available && sensor2Available)
+        {
+            Y_est_local = Matrix(SS_Z_LEN * 2, 1);
+            Y_sigma_local = Matrix(SS_Z_LEN * 2, (2 * SS_X_LEN + 1));
+            Py_local = Matrix(SS_Z_LEN * 2, SS_Z_LEN * 2);
+            DY_local = Matrix(SS_Z_LEN * 2, (2 * SS_X_LEN + 1));
+            Rn_local = Rn_combined;
+            /*Pxy_local = Matrix(SS_Z_LEN * 2, SS_Z_LEN * 2);*/
+            /*Err_local = Matrix(SS_Z_LEN * 2, 1);
+            Gain_local = Matrix(SS_X_LEN, SS_Z_LEN * 2);*/
+            bNonlinearUpdateY_local = bNonlinearUpdateY_combined;
 
-    /* Unscented Transform YSigma [h,XSigma,u,Rn] -> [y_est,YSigma,Py,DY]:  ...{UKF_5b} - {UKF_8b} */
-    if (!bUnscentedTransform(Y_Est, Y_Sigma, Py, DY, bNonlinearUpdateY, X_Sigma, U, Rn)) {
-        return false;
-    }
-
-
-    /* Calculate Cross-Covariance Matrix:
-     *  Pxy(k) = sum(Wc(i)*DX*DY(i))            ; i = 1 ... (2N+1)          ...{UKF_9}
-     */
-    for (int16_t _i = 0; _i < DX.i16getRow(); _i++) {
-        for (int16_t _j = 0; _j < DX.i16getCol(); _j++) {
-            DX[_i][_j] *= Wc[0][_j];
         }
+        else if (sensor1Available)
+        {
+            Rn_local = Rn_sensor1;
+            bNonlinearUpdateY_local = bNonlinearUpdateY_sensor1;
+        }
+        else
+        {
+            Rn_local = Rn_sensor2;
+            bNonlinearUpdateY_local = bNonlinearUpdateY_sensor2;
+        }
+
+
+
+        if (!bUnscentedTransform(Y_est_local, Y_sigma_local, Py_local, DY_local, bNonlinearUpdateY_local, X_Sigma, U, Rn_local)) {
+            return false;
+        }
+
+        Matrix Pxy = calculateCrossCovariance(DX, DY_local, Wc);
+        Matrix PyInv = Py_local.Invers();
+        if (!PyInv.bMatrixIsValid()) {
+            return false;
+        }
+
+        Matrix Gain_local = Pxy * PyInv;
+        Matrix Err_local = Y - Y_est_local;
+        if(sensor1Available)
+            adjustBearingError(Err_local);  // Function to wrap angles, if needed
+        X_Est = X_Est + (Gain_local * Err_local);
+        P = P - (Gain_local * Py_local * Gain_local.Transpose());
     }
-    Pxy = DX * (DY.Transpose());
-
-
-    /* Calculate the Kalman Gain:
-     *  K           = Pxy(k) * (Py(k)^-1)                                   ...{UKF_10}
-     */
-    Matrix PyInv(Py.Invers());
-    if (!PyInv.bMatrixIsValid()) {
-        return false;
-    }
-    Gain = Pxy * PyInv;
-
-
-    /* Update the Estimated State Variable:
-     *  x(k|k)      = x(k|k-1) + K * (y(k) - y_est(k))                      ...{UKF_11}
-     */
-    Err = Y - Y_Est;
-    // TODO: Fix discontinuity of bearing
-    if (Err[1][0] > 180)
-    {
-        Err[1][0] = Err[1][0] - 360;
-    }
-    if (Err[2][0] > 180)
-    {
-        Err[2][0] = Err[2][0] - 360;
-    }
-    if (Err[1][0] < -180)
-    {
-        Err[1][0] = 360 + Err[1][0];
-    }
-    if (Err[2][0] < -180)
-    {
-        Err[2][0] = 360 + Err[2][0];
-    }
-
-    X_Est = X_Est + (Gain * Err);
-
-
-    /* Update the Covariance Matrix:
-     *  P(k|k)      = P(k|k-1) - K*Py(k)*K'                                 ...{UKF_12}
-     */
-    P = P - (Gain * Py * Gain.Transpose());
-
 
     return true;
 }
+
+//bool UKF::bUpdate(const Matrix& Y_sensor1, const Matrix& Y_sensor2, const Matrix& U, bool sensor1Available, bool sensor2Available)
+//{
+//    // Prediction Step: Unscented Transform for the process model
+//    if (!bCalculateSigmaPoint() || !bUnscentedTransform(X_Est, X_Sigma, P, DX, bNonlinearUpdateX, X_Sigma, U, Rv)) {
+//        return false;
+//    }
+//
+//    // First Measurement Update (if sensor1 is available)
+//    if (sensor1Available) {
+//        if (!bUnscentedTransform(Y_Est, Y_Sigma_sensor1, Py, DY, bNonlinearUpdateY_sensor1, X_Sigma, U, Rn_sensor1)) {
+//            return false;
+//        }
+//
+//        Matrix Pxy = calculateCrossCovariance(DX, DY, Wc);
+//        Matrix PyInv = Py.Invers();
+//        if (!PyInv.bMatrixIsValid()) {
+//            return false;
+//        }
+//
+//        Matrix Gain = Pxy * PyInv;
+//        Matrix Err = Y_sensor1 - Y_Est;
+//        adjustBearingError(Err);  // Function to wrap angles, if needed
+//        X_Est = X_Est + (Gain * Err);
+//        P = P - (Gain * Py * Gain.Transpose());
+//    }
+//
+//    // Second Measurement Update (if sensor2 is available)
+//    if (sensor2Available) {
+//        if (!bUnscentedTransform(Y_Est, Y_Sigma_sensor2, Py, DY, bNonlinearUpdateY_sensor2, X_Sigma, U, Rn_sensor2)) {
+//            return false;
+//        }
+//
+//        Matrix Pxy = calculateCrossCovariance(DX, DY, Wc);
+//        Matrix PyInv = Py.Invers();
+//        if (!PyInv.bMatrixIsValid()) {
+//            return false;
+//        }
+//
+//        Matrix Gain = Pxy * PyInv;
+//        Matrix Err = Y_sensor2 - Y_Est;
+//        X_Est = X_Est + (Gain * Err);
+//        P = P - (Gain * Py * Gain.Transpose());
+//    }
+//
+//    // If no data is available, optionally add uncertainty inflation here
+//    //if (sensor1Available && sensor2Available) {
+//    //    Matrix k(P.i16getRow(), P.i16getCol());
+//    //    k.vSetIdentity();
+//    //    float inflationFactor = 40;
+//    //    Matrix inflationMatrix = k * inflationFactor;
+//    //    P = P + inflationMatrix;
+//    //}
+//
+//    return true;
+//}
+
+//bool UKF::bUpdate(const Matrix& Y, const Matrix& U)
+//{
+//    /* Run once every sampling time */
+//
+//    /* XSigma(k-1) = [x(k-1) Xs(k-1)+GPsq Xs(k-1)-GPsq]                     ...{UKF_4}  */
+//    if (!bCalculateSigmaPoint()) {
+//        return false;
+//    }
+//
+//
+//    /* Unscented Transform XSigma [f,XSigma,u,Rv] -> [x,XSigma,P,DX]:       ...{UKF_5a} - {UKF_8a} */
+//    if (!bUnscentedTransform(X_Est, X_Sigma, P, DX, bNonlinearUpdateX, X_Sigma, U, Rv)) {
+//        return false;
+//    }
+//
+//    /* Unscented Transform YSigma [h,XSigma,u,Rn] -> [y_est,YSigma,Py,DY]:  ...{UKF_5b} - {UKF_8b} */
+//    if (!bUnscentedTransform(Y_Est, Y_Sigma, Py, DY, bNonlinearUpdateY, X_Sigma, U, Rn)) {
+//        return false;
+//    }
+//
+//
+//    /* Calculate Cross-Covariance Matrix:
+//     *  Pxy(k) = sum(Wc(i)*DX*DY(i))            ; i = 1 ... (2N+1)          ...{UKF_9}
+//     */
+//    for (int16_t _i = 0; _i < DX.i16getRow(); _i++) {
+//        for (int16_t _j = 0; _j < DX.i16getCol(); _j++) {
+//            DX[_i][_j] *= Wc[0][_j];
+//        }
+//    }
+//    Pxy = DX * (DY.Transpose());
+//
+//
+//    /* Calculate the Kalman Gain:
+//     *  K           = Pxy(k) * (Py(k)^-1)                                   ...{UKF_10}
+//     */
+//    Matrix PyInv(Py.Invers());
+//    if (!PyInv.bMatrixIsValid()) {
+//        return false;
+//    }
+//    Gain = Pxy * PyInv;
+//
+//
+//    /* Update the Estimated State Variable:
+//     *  x(k|k)      = x(k|k-1) + K * (y(k) - y_est(k))                      ...{UKF_11}
+//     */
+//    Err = Y - Y_Est;
+//    // TODO: Fix discontinuity of bearing
+//    if (Err[1][0] > 180)
+//    {
+//        Err[1][0] = Err[1][0] - 360;
+//    }
+//    if (Err[2][0] > 180)
+//    {
+//        Err[2][0] = Err[2][0] - 360;
+//    }
+//    if (Err[1][0] < -180)
+//    {
+//        Err[1][0] = 360 + Err[1][0];
+//    }
+//    if (Err[2][0] < -180)
+//    {
+//        Err[2][0] = 360 + Err[2][0];
+//    }
+//
+//    X_Est = X_Est + (Gain * Err);
+//
+//
+//    /* Update the Covariance Matrix:
+//     *  P(k|k)      = P(k|k-1) - K*Py(k)*K'                                 ...{UKF_12}
+//     */
+//    P = P - (Gain * Py * Gain.Transpose());
+//
+//
+//    return true;
+//}
 
 bool UKF::bCalculateSigmaPoint(void)
 {

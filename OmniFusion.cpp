@@ -3,6 +3,7 @@
 #include "utilities.h"
 #include "configuration.h"
 #include <cmath>
+#include "system_state.h"
 
 using std::to_string;
 
@@ -93,6 +94,7 @@ void OmniFusion::fuseGnss(Quaternion gnss_orientation, float gnss_latitude, floa
 
 void OmniFusion::fuseRovl(float apparent_bearing_math, float apparent_elevation, float slant_range)
 {
+#if false
 	//TODO: Glitch filter. Need to check bearing AFTER transformation with GNSS
 	//if (apparent_elevation > 0)
 	//{
@@ -146,11 +148,11 @@ void OmniFusion::fuseRovl(float apparent_bearing_math, float apparent_elevation,
 
 	//TODO: Testing without ROVL just using DVL.
 	lowPassUpdateRovPos(rov_lon, rov_lat, rov_depth, 1);
-
+#endif
 }
 
 
-void OmniFusion::sendUKF(float pos_x, float pos_y, float pos_z)
+void OmniFusion::sendUKF(float pos_x, float pos_y, float pos_z, Quaternion& orientation)
 {
 	//vec3 apparent_location(pos_x, pos_y, pos_z);
 
@@ -172,7 +174,14 @@ void OmniFusion::sendUKF(float pos_x, float pos_y, float pos_z)
 	double rov_lat = lat_meters(m_omni_lat) + pos_y;
 	double rov_depth = pos_z;
 
-	sendMapUpdate("UKF", "YELLOW", 0, meters_to_lat(rov_lat), meters_to_lon(m_omni_lat, rov_lon));
+
+	float rov_heading = orientation.Heading();
+	if (rov_heading < 0)
+	{
+		rov_heading += 360;
+	}
+
+	sendMapUpdate("ROV", "YELLOW", rov_heading, meters_to_lat(rov_lat), meters_to_lon(m_omni_lat, rov_lon));
 }
 
 
@@ -204,12 +213,34 @@ void OmniFusion::fuseBlueBoatLocation(double lat, double lon)
 //DVL and mavlink frames are NED
 void OmniFusion::fuseDvl(bool valid, float pos_delta_x, float pos_delta_y, float pos_delta_z)
 {
-#if false
+#if true
 	//TODO: DELETE
 	/*return;*/
 	if (!valid || elapsed(last_mav_orientation_time) > dvl_orientation_timeout) return;
 
+
+
 	vec3 pos_delta = vec3(pos_delta_x, pos_delta_y, pos_delta_z);
+	//TESTING
+	float delta_time = t650_dvpdx.delta_time_uS / 1000000.f;
+	float x_vel = t650_dvpdx.position_delta_x / delta_time;
+	float y_vel = t650_dvpdx.position_delta_y / delta_time;
+	float z_vel = t650_dvpdx.position_delta_z / delta_time;
+
+
+	static TIMING last_time = Clock().now();
+	double delta = elapsed(last_time);
+	pos_delta_x = x_vel * delta;
+	pos_delta_y = y_vel * delta;
+	pos_delta_z = z_vel * delta;
+	last_time = Clock().now();
+	pos_delta = vec3(pos_delta_x, pos_delta_y, pos_delta_z);
+	//DELETE ABOVE
+
+
+
+
+
 	//if (pos_delta_x != 0)
 	//{
 	//	printf("HERE\n");
@@ -236,7 +267,7 @@ void OmniFusion::sendDatumToMap()
 	{
 		rov_heading += 360;
 	}
-	//sendMapUpdate("ROV", "YELLOW", rov_heading, meters_to_lat(m_rov_lat_meters), meters_to_lon(m_omni_lat, m_rov_lon_meters));
+	sendMapUpdate("ROV2", "BLUE", rov_heading, meters_to_lat(m_rov_lat_meters), meters_to_lon(m_omni_lat, m_rov_lon_meters));
 }
 
 
