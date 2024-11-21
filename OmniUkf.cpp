@@ -28,9 +28,9 @@
 #define Rv_INIT_POS         (0.01f) // variance in state position
 #define Rv_INIT_VEL         (0.05f) // variance in state velocity
 
-#define Rn_INIT_ROVL_BEAR   (100.f)       // bearing/elevation variance
-#define Rn_INIT_ROVL_SR     (20.f) //Slant range variance
-#define Rn_INIT_DVL         (0.001f)
+#define Rn_INIT_ROVL_BEAR   (3.f)       // bearing/elevation variance
+#define Rn_INIT_ROVL_SR     (0.5f) //Slant range variance
+#define Rn_INIT_DVL         (0.01f)
 /* P(k=0) variable -------------------------------------------------------------------------------------------------- */
 float_prec UKF_PINIT_data[SS_X_LEN * SS_X_LEN] = {  P_INIT, 0,      0,      0,      0,      0,
                                                     0,      P_INIT, 0,      0,      0,      0,
@@ -130,7 +130,6 @@ if (run_ukf && elapsed(timerUKF) >= SS_DT) {
 
 
 
-
         /* ================== Read the sensor data / simulate the system here ================== */
         /* ... */
 
@@ -150,8 +149,6 @@ if (run_ukf && elapsed(timerUKF) >= SS_DT) {
         //velX += 1.f;
 
         //Get ROVL data
-
-
         Y_ROVL[0][0] = rovl_usrth.slant_range;
         Y_ROVL[1][0] = rovl_usrth.apparent_bearing_math;
         Y_ROVL[2][0] = rovl_usrth.apparent_elevation;
@@ -164,28 +161,20 @@ if (run_ukf && elapsed(timerUKF) >= SS_DT) {
         float y_vel = -t650_dvpdx.position_delta_y / delta_time;
         float z_vel = t650_dvpdx.position_delta_z / delta_time;
 
-        //TODO delete later testing:
-
-        //x_vel = 1;
-        //y_vel = 0;
-        //z_vel = 0;
-
-        //Quaternion mav_orientation = Quaternion(0, 0, 90 - 0);
-        //static int count = 0;
-        //if (count > 500)
-        //{
-        //    x_vel = 0;
-        //    y_vel = 1;
-        //    /*mav_orientation = Quaternion(0, 0, 90 - 90);*/
-        //}
-        //count++;
-
 
         vec3 rel_vel(x_vel, y_vel, z_vel);
 
         Quaternion mav_orientation = Quaternion(mav_roll, mav_pitch, fPI/2 - mav_yaw, ANGLE_TYPE::RADIANS);
         //mav_orientation.Invert();
         vec3 world_vel = mav_orientation.Rotate(rel_vel);
+
+
+
+        //TODO: DELETE JUST TESTING
+       /* Quaternion offset_test(0, 0, 30);
+
+        world_vel = offset_test.Rotate(world_vel);*/
+        //END DELETE
 
         Y_DVL[0][0] = world_vel.x;
         Y_DVL[1][0] = world_vel.y;
@@ -209,7 +198,7 @@ if (run_ukf && elapsed(timerUKF) >= SS_DT) {
         Y_COMBINED[4][0] = Y_DVL[1][0];
         Y_COMBINED[5][0] = Y_DVL[2][0];
 
-        bool rovl_data = rovl_usrth.slant_range != 0;
+        bool rovl_data = rovl_usrth.slant_range != 0 && !wait_for_gnss;
         bool dvl_data = !std::isnan(Y_DVL[0][0]) && Y_DVL[0][0] != 0;
 
         /* ------------------ Read the sensor data / simulate the system here ------------------ */
@@ -236,18 +225,19 @@ if (run_ukf && elapsed(timerUKF) >= SS_DT) {
 
         printf("DIFF: %f\n", estVel.length() - world_vel.length());*/
 
-        if (Y_ROVL[0][0] != 0)
+        if (rovl_data)
         {
-            omnifusion.sendRovlRawToMap(Y_ROVL[1][0], Y_ROVL[2][0], Y_ROVL[0][0]);
+            omnifusion.sendRovlRawToMap(Y_ROVL[1][0], Y_ROVL[2][0], Y_ROVL[0][0], true);
             rovl_usrth.slant_range = 0;
         }
+        
         /*snprintf(bufferTxSer, sizeof(bufferTxSer) - 1, "%.3f %.3f %.3f ", ((float)computeTime), x[0][0], x[1][0]);
         printf(bufferTxSer);
         printf("\n");*/
 #endif
         
 
-        //printf("ELAPSED 2: %f\n", elapsed(timerUKF));
+        //printf("ELAPSED: %f\n", elapsed(timerUKF));
         /* --------------------------- Print to serial (for plotting) -------------------------- */
     }
 }
@@ -282,7 +272,7 @@ bool Main_bUpdateNonlinearY_ROVL(Matrix& Y, const Matrix& X, const Matrix& U)
     vec3 rov_offset_world(x, y, z);
 
     Quaternion omnitrack_rotation = gnss_orientation;
-    //Quaternion omnitrack_rotation = Quaternion(0, 0, 0);
+
     omnitrack_rotation.Invert();
 
     Quaternion rovl_yaw_offset(0, 0, -90);

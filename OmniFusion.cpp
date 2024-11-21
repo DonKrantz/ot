@@ -221,25 +221,6 @@ void OmniFusion::fuseDvl(bool valid, float pos_delta_x, float pos_delta_y, float
 
 
 	vec3 pos_delta = vec3(pos_delta_x, pos_delta_y, pos_delta_z);
-	//TESTING
-	float delta_time = t650_dvpdx.delta_time_uS / 1000000.f;
-	float x_vel = t650_dvpdx.position_delta_x / delta_time;
-	float y_vel = t650_dvpdx.position_delta_y / delta_time;
-	float z_vel = t650_dvpdx.position_delta_z / delta_time;
-
-
-	static TIMING last_time = Clock().now();
-	double delta = elapsed(last_time);
-	pos_delta_x = x_vel * delta;
-	pos_delta_y = y_vel * delta;
-	pos_delta_z = z_vel * delta;
-	last_time = Clock().now();
-	pos_delta = vec3(pos_delta_x, pos_delta_y, pos_delta_z);
-	//DELETE ABOVE
-
-
-
-
 
 	//if (pos_delta_x != 0)
 	//{
@@ -248,6 +229,14 @@ void OmniFusion::fuseDvl(bool valid, float pos_delta_x, float pos_delta_y, float
 	// Rotate position delta to NED world frame (because Rov orientation is in NED)
 	// TODO: Check this rotation is correct
 	pos_delta = m_rov_orientation.Rotate(pos_delta);
+
+
+	//TODO: DELETE JUST TESTING
+	//Quaternion offset_test(0, 0, 30);
+
+	//pos_delta = offset_test.Rotate(pos_delta);
+	//END DELETE
+
 
 	// ROV frame 
 	m_rov_lat_meters += pos_delta.x;
@@ -298,8 +287,11 @@ void OmniFusion::sendRovlTrueToMap(float true_bearing_math, float true_elevation
 	sendMapUpdate("SEC", "GREEN", 0, meters_to_lat(rov_lat_meter), meters_to_lon(m_omni_lat, rov_lon_meter));
 }
 
-void OmniFusion::sendRovlRawToMap(float apparent_bearing_math, float apparent_elevation, float slant_range)
+void OmniFusion::sendRovlRawToMap(float apparent_bearing_math, float apparent_elevation, float slant_range, bool ukf)
 {
+	string head = ukf ? "UKF DATA" : "LOG DATA";
+	string out = head + ": SR-%f, BEAR-%f, ELEV-%f, w-%f, x-%f, y-%f, z-%f\n";
+	//printf(out.c_str(), rovl_usrth.slant_range, rovl_usrth.apparent_bearing_math, rovl_usrth.apparent_elevation, gnss_orientation.w, gnss_orientation.x, gnss_orientation.y, gnss_orientation.z);
 	//Convert angles to radians
 	apparent_bearing_math *= fPI / 180;
 	apparent_elevation *= fPI / 180;
@@ -334,7 +326,7 @@ void OmniFusion::sendRovlRawToMap(float apparent_bearing_math, float apparent_el
 	double rov_lat = lat_meters(m_omni_lat) + rov_location.y;
 	double rov_depth = rov_location.z;
 
-	sendMapUpdate("SEC", "RED", 0, meters_to_lat(rov_lat), meters_to_lon(m_omni_lat, rov_lon));
+	sendMapUpdate(ukf ? "SEC" : "else", ukf ? "RED" : "GREEN", 0, meters_to_lat(rov_lat), meters_to_lon(m_omni_lat, rov_lon));
 }
 
 

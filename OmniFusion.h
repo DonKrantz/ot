@@ -73,7 +73,7 @@ public:
 	void sendRovlTrueToMap(float true_bearing_math, float true_elevation, float slant_range);
 
 	//Send raw ROVL data to map to compare to fusion
-	void sendRovlRawToMap(float apparent_bearing_math, float apparent_elevation, float slant_range);
+	void sendRovlRawToMap(float apparent_bearing_math, float apparent_elevation, float slant_range, bool ukf = false);
 
 	// Send UKF data to map
 	void sendUKF(float pos_x, float pos_y, float pos_z, Quaternion& orientation);

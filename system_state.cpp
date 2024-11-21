@@ -14,6 +14,8 @@ string rovl_polling_ids_human_readable = "";
 uint16_t rovl_polling_ids_mask = 0;
 bool rovl_comm_active = false;
 
+bool wait_for_gnss = true;
+
 struct usrth_message rovl_usrth;
 
 bool t650_valid = false;

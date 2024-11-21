@@ -21,6 +21,9 @@ extern bool rovl_using_CIMU;
 extern string rovl_polling_ids_human_readable;
 extern uint16_t rovl_polling_ids_mask;
 
+//TODO: Quick fix for now. Should probably track arrival times instead. If true, need to wait for gnss orientation before using rovl data
+extern bool wait_for_gnss;
+
 extern struct usrth_message rovl_usrth;
 
 extern bool rovl_comm_active;

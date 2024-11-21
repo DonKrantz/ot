@@ -73,6 +73,7 @@ void parse_usrth(string s)
    );
 
    // TODO: Request Gnss orientation/location 
+   wait_for_gnss = true;
    send_ping_request(imu_gnss_compass_data);
 
 }

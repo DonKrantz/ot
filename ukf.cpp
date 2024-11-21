@@ -124,10 +124,10 @@ namespace {
     }
 }
 
-UKF::UKF(const Matrix& XInit, const Matrix& PInit, const Matrix& Rv, const Matrix& Rn_sensor1, const Matrix& Rn_sensor2, const Matrix& Rn_combined,
+UKF::UKF(const Matrix& XInit, const Matrix& PInit, const Matrix& Rv, const Matrix& Rn_rovl, const Matrix& Rn_dvl, const Matrix& Rn_combined,
     bool (*bNonlinearUpdateX)(Matrix&, const Matrix&, const Matrix&),
-    bool (*bNonlinearUpdateY_sensor1)(Matrix&, const Matrix&, const Matrix&),
-    bool (*bNonlinearUpdateY_sensor2)(Matrix&, const Matrix&, const Matrix&),
+    bool (*bNonlinearUpdateY_rovl)(Matrix&, const Matrix&, const Matrix&),
+    bool (*bNonlinearUpdateY_dvl)(Matrix&, const Matrix&, const Matrix&),
     bool (*bNonlinearUpdateY_combined)(Matrix&, const Matrix&, const Matrix&))
 {
     /* Initialization:
@@ -140,12 +140,12 @@ UKF::UKF(const Matrix& XInit, const Matrix& PInit, const Matrix& Rv, const Matri
     this->X_Est = XInit;
     this->P = PInit;
     this->Rv = Rv;
-    this->Rn_sensor1 = Rn_sensor1;
-    this->Rn_sensor2 = Rn_sensor2;
+    this->Rn_rovl = Rn_rovl;
+    this->Rn_dvl = Rn_dvl;
     this->Rn_combined = Rn_combined;
     this->bNonlinearUpdateX = bNonlinearUpdateX;
-    this->bNonlinearUpdateY_sensor1 = bNonlinearUpdateY_sensor1;
-    this->bNonlinearUpdateY_sensor2 = bNonlinearUpdateY_sensor2;
+    this->bNonlinearUpdateY_rovl = bNonlinearUpdateY_rovl;
+    this->bNonlinearUpdateY_dvl = bNonlinearUpdateY_dvl;
     this->bNonlinearUpdateY_combined = bNonlinearUpdateY_combined;
 
     /* Van der. Merwe, .. (2004). Sigma-Point Kalman Filters for Probabilistic Inference in Dynamic State-Space Models
@@ -177,23 +177,23 @@ UKF::UKF(const Matrix& XInit, const Matrix& PInit, const Matrix& Rv, const Matri
 }
 
 
-void UKF::vReset(const Matrix& XInit, const Matrix& PInit, const Matrix& Rv, const Matrix& Rn_sensor1, const Matrix& Rn_sensor2)
+void UKF::vReset(const Matrix& XInit, const Matrix& PInit, const Matrix& Rv, const Matrix& Rn_rovl, const Matrix& Rn_dvl)
 {
     this->X_Est = XInit;
     this->P = PInit;
     this->Rv = Rv;
-    this->Rn_sensor1 = Rn_sensor1;
-    this->Rn_sensor2 = Rn_sensor2;
+    this->Rn_rovl = Rn_rovl;
+    this->Rn_dvl = Rn_dvl;
 }
 
-bool UKF::bUpdate(const Matrix& Y, const Matrix& U, bool sensor1Available, bool sensor2Available)
+bool UKF::bUpdate(const Matrix& Y, const Matrix& U, bool rovl_available, bool dvl_available)
 {
     // Prediction Step: Unscented Transform for the process model
     if (!bCalculateSigmaPoint() || !bUnscentedTransform(X_Est, X_Sigma, P, DX, bNonlinearUpdateX, X_Sigma, U, Rv)) {
         return false;
     }
 
-    if (sensor1Available || sensor2Available)
+    if (rovl_available || dvl_available)
     {
         Matrix Y_est_local(SS_Z_LEN, 1);
         Matrix Y_sigma_local{ SS_Z_LEN, (2 * SS_X_LEN + 1) };
@@ -206,7 +206,7 @@ bool UKF::bUpdate(const Matrix& Y, const Matrix& U, bool sensor1Available, bool 
         bool (*bNonlinearUpdateY_local)(Matrix & xOut, const Matrix & xInp, const Matrix & U);
 
         //Sizes need to change
-        if (sensor1Available && sensor2Available)
+        if (rovl_available && dvl_available)
         {
             Y_est_local = Matrix(SS_Z_LEN * 2, 1);
             Y_sigma_local = Matrix(SS_Z_LEN * 2, (2 * SS_X_LEN + 1));
@@ -219,15 +219,15 @@ bool UKF::bUpdate(const Matrix& Y, const Matrix& U, bool sensor1Available, bool 
             bNonlinearUpdateY_local = bNonlinearUpdateY_combined;
 
         }
-        else if (sensor1Available)
+        else if (rovl_available)
         {
-            Rn_local = Rn_sensor1;
-            bNonlinearUpdateY_local = bNonlinearUpdateY_sensor1;
+            Rn_local = Rn_rovl;
+            bNonlinearUpdateY_local = bNonlinearUpdateY_rovl;
         }
         else
         {
-            Rn_local = Rn_sensor2;
-            bNonlinearUpdateY_local = bNonlinearUpdateY_sensor2;
+            Rn_local = Rn_dvl;
+            bNonlinearUpdateY_local = bNonlinearUpdateY_dvl;
         }
 
 
@@ -244,7 +244,7 @@ bool UKF::bUpdate(const Matrix& Y, const Matrix& U, bool sensor1Available, bool 
 
         Matrix Gain_local = Pxy * PyInv;
         Matrix Err_local = Y - Y_est_local;
-        if(sensor1Available)
+        if(rovl_available)
             adjustBearingError(Err_local);  // Function to wrap angles, if needed
         X_Est = X_Est + (Gain_local * Err_local);
         P = P - (Gain_local * Py_local * Gain_local.Transpose());

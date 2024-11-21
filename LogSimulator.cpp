@@ -123,6 +123,8 @@ void LogSimulator::do_gnss(string data) {
 
 	gnss_orientation = Qor;
 
+	wait_for_gnss = false;
+
 	omnifusion.fuseGnss(Qor, lat, lon, gnss_position_valid, gyro.length());
 
 }
@@ -133,6 +135,11 @@ void LogSimulator::do_rovl(string data) {
 		return;
 	}
 
+	/*static TIMING last_data;
+
+	printf("LAST ROVL: %f\n", elapsed(last_data));
+	last_data = Clock().now();*/
+
 	parse_usrth(data);
 	
 	//omnifusion.fuseRovl(rovl_usrth.apparent_bearing_math, rovl_usrth.apparent_elevation, rovl_usrth.slant_range);
@@ -140,6 +147,7 @@ void LogSimulator::do_rovl(string data) {
 
 	//TODO: Testing here can delete later
 	//omnifusion.sendRovlTrueToMap(rovl_usrth.true_bearing_math, rovl_usrth.true_elevation, rovl_usrth.slant_range);
+	//BAD VISUALIZATION UNLESS YOU WAIT FOR GNSS ORIENTATION FIRST
 	//omnifusion.sendRovlRawToMap(rovl_usrth.apparent_bearing_math, rovl_usrth.apparent_elevation, rovl_usrth.slant_range);
 }
 
