@@ -117,13 +117,13 @@ void LogSimulator::do_gnss(string data) {
 	if (matched < 18) {
 		return;
 	}
+	gnss_timestamp = elapsed(mission_start_time);
+
 	gnss_status = stat;
 
 	vec3 gyro = vec3(rr, pr, yr);
 
 	gnss_orientation = Qor;
-
-	wait_for_gnss = false;
 
 	omnifusion.fuseGnss(Qor, lat, lon, gnss_position_valid, gyro.length());
 

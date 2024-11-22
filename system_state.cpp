@@ -13,8 +13,7 @@ bool rovl_using_CIMU = false;
 string rovl_polling_ids_human_readable = "";
 uint16_t rovl_polling_ids_mask = 0;
 bool rovl_comm_active = false;
-
-bool wait_for_gnss = true;
+double usrth_timestamp = 0;
 
 struct usrth_message rovl_usrth;
 
@@ -47,6 +46,8 @@ float gnss_pitch_rate;
 float gnss_yaw_rate;
 float gnss_lat;
 float gnss_lon;
+
+double gnss_timestamp = 0;
 bool gnss_comm_active = false;
 
 void reset_state() 

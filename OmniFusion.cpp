@@ -175,7 +175,7 @@ void OmniFusion::sendUKF(float pos_x, float pos_y, float pos_z, Quaternion& orie
 	double rov_depth = pos_z;
 
 
-	float rov_heading = orientation.Heading();
+	float rov_heading = orientation.Yaw();
 	if (rov_heading < 0)
 	{
 		rov_heading += 360;
@@ -218,27 +218,13 @@ void OmniFusion::fuseDvl(bool valid, float pos_delta_x, float pos_delta_y, float
 	/*return;*/
 	if (!valid || elapsed(last_mav_orientation_time) > dvl_orientation_timeout) return;
 
-
-
 	vec3 pos_delta = vec3(pos_delta_x, pos_delta_y, pos_delta_z);
 
-	//if (pos_delta_x != 0)
-	//{
-	//	printf("HERE\n");
-	//}
 	// Rotate position delta to NED world frame (because Rov orientation is in NED)
 	// TODO: Check this rotation is correct
 	pos_delta = m_rov_orientation.Rotate(pos_delta);
 
-
-	//TODO: DELETE JUST TESTING
-	//Quaternion offset_test(0, 0, 30);
-
-	//pos_delta = offset_test.Rotate(pos_delta);
-	//END DELETE
-
-
-	// ROV frame 
+	// Adding in this manner effectively converts to ENU
 	m_rov_lat_meters += pos_delta.x;
 	m_rov_lon_meters += pos_delta.y;
 	m_rov_depth = -pos_delta.z;

@@ -39,6 +39,8 @@ void decode_poll(string s)
 // ======================================================================
 void parse_usrth(string s)
 {
+   usrth_timestamp = elapsed(mission_start_time);
+
    rovl_usrth.ping_group_valid = true;
    rovl_usrth.imu_group_valid = true;
 
@@ -73,7 +75,6 @@ void parse_usrth(string s)
    );
 
    // TODO: Request Gnss orientation/location 
-   wait_for_gnss = true;
    send_ping_request(imu_gnss_compass_data);
 
 }

@@ -25,11 +25,11 @@
   */
   /* UKF initialization constant -------------------------------------------------------------------------------------- */
 #define P_INIT              (10.0f)
-#define Rv_INIT_POS         (0.01f) // variance in state position
-#define Rv_INIT_VEL         (0.05f) // variance in state velocity
+#define Rv_INIT_POS         (0.001f) // variance in state position
+#define Rv_INIT_VEL         (0.005f) // variance in state velocity
 
-#define Rn_INIT_ROVL_BEAR   (3.f)       // bearing/elevation variance
-#define Rn_INIT_ROVL_SR     (0.5f) //Slant range variance
+#define Rn_INIT_ROVL_BEAR   (30.f)       // bearing/elevation variance
+#define Rn_INIT_ROVL_SR     (1.f) //Slant range variance
 #define Rn_INIT_DVL         (0.01f)
 /* P(k=0) variable -------------------------------------------------------------------------------------------------- */
 float_prec UKF_PINIT_data[SS_X_LEN * SS_X_LEN] = {  P_INIT, 0,      0,      0,      0,      0,
@@ -158,17 +158,24 @@ if (run_ukf && elapsed(timerUKF) >= SS_DT) {
         float delta_time = t650_dvpdx.delta_time_uS / 1000000.f;
         // TODO: Figure out frame issue here. Negative is just a band aid
         float x_vel = t650_dvpdx.position_delta_x / delta_time;
-        float y_vel = -t650_dvpdx.position_delta_y / delta_time;
+        float y_vel = t650_dvpdx.position_delta_y / delta_time;
         float z_vel = t650_dvpdx.position_delta_z / delta_time;
 
 
         vec3 rel_vel(x_vel, y_vel, z_vel);
 
-        Quaternion mav_orientation = Quaternion(mav_roll, mav_pitch, fPI/2 - mav_yaw, ANGLE_TYPE::RADIANS);
-        //mav_orientation.Invert();
+        Quaternion mav_orientation = Quaternion(mav_roll, mav_pitch, mav_yaw, ANGLE_TYPE::RADIANS);
         vec3 world_vel = mav_orientation.Rotate(rel_vel);
 
+        // World_vel is in NED. Need to rotate to ENU
+        float tempY = world_vel.y;
+        world_vel.y = world_vel.x;
+        world_vel.x = tempY;
+        world_vel.z = -world_vel.z;
 
+        Y_DVL[0][0] = world_vel.x;
+        Y_DVL[1][0] = world_vel.y;
+        Y_DVL[2][0] = world_vel.z;
 
         //TODO: DELETE JUST TESTING
        /* Quaternion offset_test(0, 0, 30);
@@ -198,7 +205,9 @@ if (run_ukf && elapsed(timerUKF) >= SS_DT) {
         Y_COMBINED[4][0] = Y_DVL[1][0];
         Y_COMBINED[5][0] = Y_DVL[2][0];
 
-        bool rovl_data = rovl_usrth.slant_range != 0 && !wait_for_gnss;
+        // Don't use rovl data until we get gnss orientation. Time difference is usually ~10 ms but can get up to 100.
+        // Could try integrating angular rates, but feels unnecessary and error prone. Could request orientation based on delay
+        bool rovl_data = rovl_usrth.slant_range != 0 && usrth_timestamp < gnss_timestamp;
         bool dvl_data = !std::isnan(Y_DVL[0][0]) && Y_DVL[0][0] != 0;
 
         /* ------------------ Read the sensor data / simulate the system here ------------------ */
@@ -227,6 +236,7 @@ if (run_ukf && elapsed(timerUKF) >= SS_DT) {
 
         if (rovl_data)
         {
+            //printf("Difference in time: %f \n", usrth_timestamp - gnss_timestamp);
             omnifusion.sendRovlRawToMap(Y_ROVL[1][0], Y_ROVL[2][0], Y_ROVL[0][0], true);
             rovl_usrth.slant_range = 0;
         }
