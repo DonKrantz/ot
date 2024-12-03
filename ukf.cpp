@@ -195,37 +195,31 @@ bool UKF::bUpdate(const Matrix& Y, const Matrix& U, bool rovl_available, bool dv
 
     if (rovl_available || dvl_available)
     {
-        Matrix Y_est_local(SS_Z_LEN, 1);
-        Matrix Y_sigma_local{ SS_Z_LEN, (2 * SS_X_LEN + 1) };
-        Matrix Py_local{ SS_Z_LEN, SS_Z_LEN };
-        Matrix DY_local{ SS_Z_LEN, (2 * SS_X_LEN + 1) };
-        Matrix Rn_local(SS_Z_LEN, SS_Z_LEN);
-        //Matrix Pxy_local{ SS_X_LEN, SS_Z_LEN };
-        //Matrix Err_local{ SS_Z_LEN, 1 };
-        //Matrix Gain_local{ SS_X_LEN, SS_Z_LEN };
-        bool (*bNonlinearUpdateY_local)(Matrix & xOut, const Matrix & xInp, const Matrix & U);
+        // Defaulting to combined variable sizes.
+        // TODO: Do these need to be saved between instances?
+        Matrix Y_est_local(SS_Z_LEN_COMBINED, 1);
+        Matrix Y_sigma_local{ SS_Z_LEN_COMBINED, (2 * SS_X_LEN + 1) };
+        Matrix Py_local{ SS_Z_LEN_COMBINED, SS_Z_LEN_COMBINED };
+        Matrix DY_local{ SS_Z_LEN_COMBINED, (2 * SS_X_LEN + 1) };
+        Matrix Rn_local = Rn_combined;
+        bool (*bNonlinearUpdateY_local)(Matrix & xOut, const Matrix & xInp, const Matrix & U) = bNonlinearUpdateY_combined;
 
-        //Sizes need to change
-        if (rovl_available && dvl_available)
+        //Sizes need to change because we only have one sensor
+        if (!dvl_available)
         {
-            Y_est_local = Matrix(SS_Z_LEN * 2, 1);
-            Y_sigma_local = Matrix(SS_Z_LEN * 2, (2 * SS_X_LEN + 1));
-            Py_local = Matrix(SS_Z_LEN * 2, SS_Z_LEN * 2);
-            DY_local = Matrix(SS_Z_LEN * 2, (2 * SS_X_LEN + 1));
-            Rn_local = Rn_combined;
-            /*Pxy_local = Matrix(SS_Z_LEN * 2, SS_Z_LEN * 2);*/
-            /*Err_local = Matrix(SS_Z_LEN * 2, 1);
-            Gain_local = Matrix(SS_X_LEN, SS_Z_LEN * 2);*/
-            bNonlinearUpdateY_local = bNonlinearUpdateY_combined;
-
-        }
-        else if (rovl_available)
-        {
+            Y_est_local = Matrix(SS_Z_LEN_ROVL, 1);
+            Y_sigma_local = Matrix(SS_Z_LEN_ROVL, (2 * SS_X_LEN + 1));
+            Py_local = Matrix(SS_Z_LEN_ROVL, SS_Z_LEN_ROVL);
+            DY_local = Matrix(SS_Z_LEN_ROVL, (2 * SS_X_LEN + 1));
             Rn_local = Rn_rovl;
             bNonlinearUpdateY_local = bNonlinearUpdateY_rovl;
         }
-        else
+        else if (!rovl_available)
         {
+            Y_est_local = Matrix(SS_Z_LEN_DVL, 1);
+            Y_sigma_local = Matrix(SS_Z_LEN_DVL, (2 * SS_X_LEN + 1));
+            Py_local = Matrix(SS_Z_LEN_DVL, SS_Z_LEN_DVL);
+            DY_local = Matrix(SS_Z_LEN_DVL, (2 * SS_X_LEN + 1));
             Rn_local = Rn_dvl;
             bNonlinearUpdateY_local = bNonlinearUpdateY_dvl;
         }

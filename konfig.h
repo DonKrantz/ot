@@ -14,7 +14,12 @@
 
  /* State Space dimension */
 #define SS_X_LEN    (6)
-#define SS_Z_LEN    (3)
+//#define SS_Z_LEN    (3)
+
+#define SS_Z_LEN_ROVL    (3)
+#define SS_Z_LEN_DVL    (4)
+#define SS_Z_LEN_COMBINED  (SS_Z_LEN_ROVL + SS_Z_LEN_DVL)
+
 #define SS_U_LEN    (0)
 #define SS_DT_MILIS (33)                            /* ms */
 #define SS_DT       float_prec(SS_DT_MILIS/1000.)   /* Sampling time */

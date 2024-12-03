@@ -127,11 +127,6 @@
     <ClInclude Include="vecs.h" />
     <ClInclude Include="webserver.h" />
   </ItemGroup>
-  <ItemGroup>
-    <None Include="..\..\..\Downloads\Embedded_UKF_Library-master\Embedded_UKF_Library-master\ukf_engl\ukf_engl.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">true</ExcludedFromBuild>
-    </None>
-  </ItemGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
     <Link>
       <LibraryDependencies>curl</LibraryDependencies>

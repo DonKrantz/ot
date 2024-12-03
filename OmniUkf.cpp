@@ -25,12 +25,15 @@
   */
   /* UKF initialization constant -------------------------------------------------------------------------------------- */
 #define P_INIT              (10.0f)
-#define Rv_INIT_POS         (0.001f) // variance in state position
-#define Rv_INIT_VEL         (0.005f) // variance in state velocity
+#define Rv_INIT_POS         (0.01f) // variance in state position
+#define Rv_INIT_VEL         (0.05f) // variance in state velocity
 
-#define Rn_INIT_ROVL_BEAR   (30.f)       // bearing/elevation variance
+#define Rn_INIT_ROVL_BEAR   (10.f)       // bearing/elevation variance
 #define Rn_INIT_ROVL_SR     (1.f) //Slant range variance
-#define Rn_INIT_DVL         (0.01f)
+
+#define Rn_INIT_DVL_MAG     (0.00001f) //Variance of velocity magnitude
+#define Rn_INIT_DVL_DIR     (10.0f) // Variance of velocity direction
+
 /* P(k=0) variable -------------------------------------------------------------------------------------------------- */
 float_prec UKF_PINIT_data[SS_X_LEN * SS_X_LEN] = {  P_INIT, 0,      0,      0,      0,      0,
                                                     0,      P_INIT, 0,      0,      0,      0,
@@ -48,24 +51,27 @@ float_prec UKF_RVINIT_data[SS_X_LEN * SS_X_LEN] = { Rv_INIT_POS, 0,      0,     
                                                     0,      0,      0,      0,      0,      Rv_INIT_VEL };
 Matrix UKF_RvINIT(SS_X_LEN, SS_X_LEN, UKF_RVINIT_data);
 /* Rn constant ------------------------------------------------------------------------------------------------------ */
-float_prec UKF_RNINIT_data_ROVL[SS_Z_LEN * SS_Z_LEN] = { Rn_INIT_ROVL_SR,   0,                  0,                  
+float_prec UKF_RNINIT_data_ROVL[SS_Z_LEN_ROVL * SS_Z_LEN_ROVL] = { Rn_INIT_ROVL_SR,   0,                  0,
                                                          0,                 Rn_INIT_ROVL_BEAR,  0,                  
                                                          0,                 0,                  Rn_INIT_ROVL_BEAR};
 
-float_prec UKF_RNINIT_data_DVL[SS_Z_LEN * SS_Z_LEN] = { Rn_INIT_DVL,   0,           0,
-                                                        0,             Rn_INIT_DVL, 0,
-                                                        0,             0,           Rn_INIT_DVL };
+float_prec UKF_RNINIT_data_DVL[SS_Z_LEN_DVL * SS_Z_LEN_DVL] = { Rn_INIT_DVL_MAG,    0,                  0,              0,
+                                                                0,                  Rn_INIT_DVL_DIR,    0,              0,
+                                                                0,                  0,                  Rn_INIT_DVL_DIR,0,
+                                                                0,                  0,                  0,              Rn_INIT_DVL_DIR };
 
-float_prec UKF_RNINIT_data_COMBINED[SS_Z_LEN * SS_Z_LEN * 4] = { Rn_INIT_ROVL_SR, 0,        0,           0,      0,      0,
-                                                                 0,      Rn_INIT_ROVL_BEAR, 0,           0,      0,      0,
-                                                                 0,      0,      Rn_INIT_ROVL_BEAR,      0,      0,      0,
-                                                                 0,      0,      0,         Rn_INIT_DVL, 0,      0,
-                                                                 0,      0,      0,         0,           Rn_INIT_DVL,    0,
-                                                                 0,      0,      0,         0,           0,      Rn_INIT_DVL };
+float_prec UKF_RNINIT_data_COMBINED[SS_Z_LEN_COMBINED * SS_Z_LEN_COMBINED] =
+                                                                { Rn_INIT_ROVL_SR,  0,                  0,                  0,              0,              0,              0,
+                                                                 0,                 Rn_INIT_ROVL_BEAR,  0,                  0,              0,              0,              0,
+                                                                 0,                 0,                  Rn_INIT_ROVL_BEAR,  0,              0,              0,              0,
+                                                                 0,                 0,                  0,                  Rn_INIT_DVL_MAG,0,              0,              0,
+                                                                 0,                 0,                  0,                  0,              Rn_INIT_DVL_DIR,0,              0,
+                                                                 0,                 0,                  0,                  0,              0,              Rn_INIT_DVL_DIR,0,
+                                                                 0,                 0,                  0,                  0,              0,              0,              Rn_INIT_DVL_DIR};
 
-Matrix UKF_RnINIT_ROVL(SS_Z_LEN, SS_Z_LEN, UKF_RNINIT_data_ROVL);
-Matrix UKF_RnINIT_DVL(SS_Z_LEN, SS_Z_LEN, UKF_RNINIT_data_DVL);
-Matrix UKF_RnINIT_COMBINED(SS_Z_LEN * 2, SS_Z_LEN * 2, UKF_RNINIT_data_COMBINED);
+Matrix UKF_RnINIT_ROVL(SS_Z_LEN_ROVL, SS_Z_LEN_ROVL, UKF_RNINIT_data_ROVL);
+Matrix UKF_RnINIT_DVL(SS_Z_LEN_DVL, SS_Z_LEN_DVL, UKF_RNINIT_data_DVL);
+Matrix UKF_RnINIT_COMBINED(SS_Z_LEN_COMBINED, SS_Z_LEN_COMBINED, UKF_RNINIT_data_COMBINED);
 
 
 /* Nonlinear & linearization function ------------------------------------------------------------------------------- */
@@ -75,9 +81,9 @@ bool Main_bUpdateNonlinearY_DVL(Matrix& Y, const Matrix& X, const Matrix& U);
 bool Main_bUpdateNonlinearY_COMBINED(Matrix& Y, const Matrix& X, const Matrix& U);
 /* UKF variables ---------------------------------------------------------------------------------------------------- */
 Matrix X(SS_X_LEN, 1);
-Matrix Y_ROVL(SS_Z_LEN, 1);
-Matrix Y_DVL(SS_Z_LEN, 1);
-Matrix Y_COMBINED(SS_Z_LEN * 2, 1);
+Matrix Y_ROVL(SS_Z_LEN_ROVL, 1);
+Matrix Y_DVL(SS_Z_LEN_DVL, 1);
+Matrix Y_COMBINED(SS_Z_LEN_COMBINED, 1);
 
 Matrix U(SS_U_LEN, 1);
 /* UKF system declaration ------------------------------------------------------------------------------------------- */
@@ -173,19 +179,16 @@ if (run_ukf && elapsed(timerUKF) >= SS_DT) {
         world_vel.x = tempY;
         world_vel.z = -world_vel.z;
 
-        Y_DVL[0][0] = world_vel.x;
-        Y_DVL[1][0] = world_vel.y;
-        Y_DVL[2][0] = world_vel.z;
-
         //TODO: DELETE JUST TESTING
        /* Quaternion offset_test(0, 0, 30);
 
         world_vel = offset_test.Rotate(world_vel);*/
         //END DELETE
 
-        Y_DVL[0][0] = world_vel.x;
-        Y_DVL[1][0] = world_vel.y;
-        Y_DVL[2][0] = world_vel.z;
+        Y_DVL[0][0] = world_vel.length();
+        Y_DVL[1][0] = world_vel.x/ world_vel.length();
+        Y_DVL[2][0] = world_vel.y/ world_vel.length();
+        Y_DVL[3][0] = world_vel.z/ world_vel.length();
 
 
         /*static float vel = 0;
@@ -204,6 +207,7 @@ if (run_ukf && elapsed(timerUKF) >= SS_DT) {
         Y_COMBINED[3][0] = Y_DVL[0][0];
         Y_COMBINED[4][0] = Y_DVL[1][0];
         Y_COMBINED[5][0] = Y_DVL[2][0];
+        Y_COMBINED[6][0] = Y_DVL[3][0];
 
         // Don't use rovl data until we get gnss orientation. Time difference is usually ~10 ms but can get up to 100.
         // Could try integrating angular rates, but feels unnecessary and error prone. Could request orientation based on delay
@@ -323,20 +327,38 @@ bool Main_bUpdateNonlinearY_ROVL(Matrix& Y, const Matrix& X, const Matrix& U)
 
 bool Main_bUpdateNonlinearY_DVL(Matrix& Y, const Matrix& X, const Matrix& U)
 {
-    Y[0][0] = X[1][0];
-    Y[1][0] = X[3][0];
-    Y[2][0] = X[5][0];
+    float_prec vel_length = sqrt(X[1][0] * X[1][0] + X[3][0] * X[3][0] + X[5][0] * X[5][0]);
+
+    Y[0][0] = vel_length;
+    Y[1][0] = X[1][0] / vel_length;
+    Y[2][0] = X[3][0] / vel_length;
+    Y[3][0] = X[5][0] / vel_length;
 
     return true;
 }
+
+//bool dvl_update_helper(Matrix& Y, const Matrix& X, const Matrix& U, int offset = 0)
+//{
+//    float_prec vel_length = sqrt(X[1][0] * X[1][0] + X[3][0] * X[3][0] + X[5][0] * X[5][0]);
+//
+//    Y[0 + offset][0] = vel_length;
+//    Y[1 + offset][0] = X[1][0] / vel_length;
+//    Y[2 + offset][0] = X[3][0] / vel_length;
+//    Y[3 + offset][0] = X[5][0] / vel_length;
+//
+//    return true;
+//}
 
 bool Main_bUpdateNonlinearY_COMBINED(Matrix& Y, const Matrix& X, const Matrix& U)
 {
     Main_bUpdateNonlinearY_ROVL(Y, X, U);
     
-    Y[3][0] = X[1][0];
-    Y[4][0] = X[3][0];
-    Y[5][0] = X[5][0];
+    // Same as DVL update code for d
+    float_prec vel_length = sqrt(X[1][0] * X[1][0] + X[3][0] * X[3][0] + X[5][0] * X[5][0]);
+    Y[3][0] = vel_length;
+    Y[4][0] = X[1][0] / vel_length;
+    Y[5][0] = X[3][0] / vel_length;
+    Y[6][0] = X[5][0] / vel_length;
 
     return true;
 }

@@ -47,29 +47,29 @@ private:
     Matrix X_Est{ SS_X_LEN, 1 };
     Matrix X_Sigma{ SS_X_LEN, (2 * SS_X_LEN + 1) };
 
-    Matrix Y_Est{ SS_Z_LEN, 1 };
-    Matrix Y_Sigma_rovl{ SS_Z_LEN, (2 * SS_X_LEN + 1) };
-    Matrix Y_Sigma_dvl{ SS_Z_LEN, (2 * SS_X_LEN + 1) };
+    Matrix Y_Est{ SS_Z_LEN_COMBINED, 1 };
+    //Matrix Y_Sigma_rovl{ SS_Z_LEN, (2 * SS_X_LEN + 1) };
+    //Matrix Y_Sigma_dvl{ SS_Z_LEN, (2 * SS_X_LEN + 1) };
 
     Matrix P{ SS_X_LEN, SS_X_LEN };
     Matrix P_Chol{ SS_X_LEN, SS_X_LEN };
 
     Matrix DX{ SS_X_LEN, (2 * SS_X_LEN + 1) };
-    Matrix DY{ SS_Z_LEN, (2 * SS_X_LEN + 1) };
+    Matrix DY{ SS_Z_LEN_COMBINED, (2 * SS_X_LEN + 1) };
 
-    Matrix Py{ SS_Z_LEN, SS_Z_LEN };
-    Matrix Pxy{ SS_X_LEN, SS_Z_LEN };
+    Matrix Py{ SS_Z_LEN_COMBINED, SS_Z_LEN_COMBINED };
+    Matrix Pxy{ SS_X_LEN, SS_Z_LEN_COMBINED };
 
     Matrix Wm{ 1, (2 * SS_X_LEN + 1) };
     Matrix Wc{ 1, (2 * SS_X_LEN + 1) };
 
     Matrix Rv{ SS_X_LEN, SS_X_LEN };
-    Matrix Rn_rovl{ SS_Z_LEN, SS_Z_LEN };
-    Matrix Rn_dvl{ SS_Z_LEN, SS_Z_LEN };
-    Matrix Rn_combined{ SS_Z_LEN * 2, SS_Z_LEN * 2 };
+    Matrix Rn_rovl{ SS_Z_LEN_ROVL, SS_Z_LEN_ROVL};
+    Matrix Rn_dvl{ SS_Z_LEN_DVL, SS_Z_LEN_DVL };
+    Matrix Rn_combined{ SS_Z_LEN_COMBINED, SS_Z_LEN_COMBINED };
 
-    Matrix Err{ SS_Z_LEN, 1 };
-    Matrix Gain{ SS_X_LEN, SS_Z_LEN };
+    Matrix Err{ SS_Z_LEN_COMBINED, 1 };
+    Matrix Gain{ SS_X_LEN, SS_Z_LEN_COMBINED };
     float_prec Gamma;
 };
 
